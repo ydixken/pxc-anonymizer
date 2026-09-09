@@ -1,6 +1,33 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"os"
+	"os/exec"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestAnonymizeSubcommandStartsWithoutClusterConfiguration(t *testing.T) {
+	const childMarker = "PXC_ANONYMIZER_TEST_DISPATCH"
+	if os.Getenv(childMarker) == "1" {
+		os.Args = []string{os.Args[0], "anonymize", "--help"}
+		main()
+		return
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestAnonymizeSubcommandStartsWithoutClusterConfiguration$")
+	command.Env = append(os.Environ(), childMarker+"=1", "KUBECONFIG="+t.TempDir()+"/absent")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("anonymize help: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "-reference-time") || strings.Contains(string(output), "-leader-elect") {
+		t.Fatalf("subcommand did not reach the anonymization parser: %s", output)
+	}
+}
 
 func TestManagerOptions(t *testing.T) {
 	for _, tc := range []struct {

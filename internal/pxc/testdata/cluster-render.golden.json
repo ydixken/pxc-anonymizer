@@ -1,0 +1,128 @@
+{
+  "apiVersion": "pxc.percona.com/v1",
+  "kind": "PerconaXtraDBCluster",
+  "metadata": {
+    "annotations": {
+      "argocd.argoproj.io/compare-options": "IgnoreExtraneous",
+      "example.io/note": "renderer fixture"
+    },
+    "finalizers": [
+      "percona.com/delete-pxc-pvc",
+      "percona.com/delete-ssl",
+      "percona.com/delete-proxysql-pvc"
+    ],
+    "labels": {
+      "purpose": "example"
+    },
+    "name": "anon-01234567",
+    "namespace": "renderer-tests",
+    "ownerReferences": [
+      {
+        "apiVersion": "pxc-anonymizer.io/v1alpha1",
+        "blockOwnerDeletion": true,
+        "controller": true,
+        "kind": "AnonymizationRun",
+        "name": "example-run",
+        "uid": "example-run-uid"
+      }
+    ]
+  },
+  "spec": {
+    "backup": {
+      "image": "percona/percona-xtrabackup:8.4.0-5.1",
+      "pitr": {
+        "enabled": false
+      },
+      "runningDeadlineSeconds": 7200,
+      "schedule": [],
+      "storages": {
+        "anonymized": {
+          "containerOptions": {
+            "args": {
+              "xbcloud": [
+                "--parallel=4"
+              ],
+              "xtrabackup": [
+                "--read-buffer-size=64M"
+              ]
+            }
+          },
+          "s3": {
+            "bucket": "example-output",
+            "caBundle": {
+              "key": "ca.crt",
+              "name": "object-ca"
+            },
+            "credentialsSecret": "output-credentials",
+            "endpointUrl": "https://objects.example.com",
+            "forcePathStyle": true,
+            "prefix": "runs/example",
+            "region": "us-east-1"
+          },
+          "type": "s3",
+          "verifyTLS": true
+        }
+      }
+    },
+    "crVersion": "1.20.0",
+    "haproxy": {
+      "affinity": {
+        "antiAffinityTopologyKey": "none"
+      },
+      "enabled": true,
+      "image": "percona/haproxy:2.8.18-1",
+      "size": 1
+    },
+    "logcollector": {
+      "enabled": false
+    },
+    "pmm": {
+      "enabled": false
+    },
+    "proxysql": {
+      "enabled": false
+    },
+    "pxc": {
+      "affinity": {
+        "antiAffinityTopologyKey": "none"
+      },
+      "configuration": "[mysqld]\nsql_mode=STRICT_TRANS_TABLES\n",
+      "image": "percona/percona-xtradb-cluster:8.4.8-8.1",
+      "resources": {
+        "limits": {
+          "memory": "2Gi"
+        },
+        "requests": {
+          "cpu": "500m",
+          "memory": "1Gi"
+        }
+      },
+      "size": 1,
+      "volumeSpec": {
+        "persistentVolumeClaim": {
+          "accessModes": [
+            "ReadWriteOnce"
+          ],
+          "resources": {
+            "requests": {
+              "storage": "10Gi"
+            }
+          },
+          "storageClassName": "example-storage"
+        }
+      }
+    },
+    "secretsName": "anon-01234567-secrets",
+    "tls": {
+      "enabled": false
+    },
+    "unsafeFlags": {
+      "proxySize": true,
+      "pxcSize": true,
+      "tls": true
+    },
+    "upgradeOptions": {
+      "apply": "disabled"
+    }
+  }
+}

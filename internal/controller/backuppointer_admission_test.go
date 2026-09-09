@@ -49,7 +49,7 @@ var _ = Describe("BackupPointer API admission", Label("admission"), func() {
 		storage[admissionTlsField] = map[string]any{}
 		obj := createAdmissionResource("BackupPointer", spec)
 		Expect(admissionField(obj, admissionSpecField, admissionTargetField, admissionStorageField, admissionKeysField)).To(Equal(map[string]any{
-			"accessKeyID": "AWS_ACCESS_KEY_ID", "secretAccessKey": "AWS_SECRET_ACCESS_KEY",
+			"accessKeyID": runAWSAccessKey, "secretAccessKey": runAWSSecretKey,
 			admissionEndpointField: "S3_ENDPOINT_URL", "publicEndpointURL": "S3_PUBLIC_ENDPOINT_URL",
 		}))
 		Expect(admissionField(obj, admissionSpecField, admissionTargetField, admissionStorageField, admissionTlsField, "insecureSkipVerify")).To(BeFalse())

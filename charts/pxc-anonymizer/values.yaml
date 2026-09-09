@@ -3,6 +3,11 @@ image:
   # Empty uses Chart.appVersion.
   tag: ""
   pullPolicy: IfNotPresent
+runner:
+  image:
+    # Empty components inherit the manager image.
+    repository: ""
+    tag: ""
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""

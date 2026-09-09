@@ -2,7 +2,6 @@
 
 `BackupPointer` publishes a JSON pointer to the latest successful Percona XtraDB Cluster backup in its namespace.
 It selects existing backups; it does not create backups or anonymize their contents.
-This is the controller implemented in M1.
 
 ## Example
 

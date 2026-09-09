@@ -7,12 +7,67 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - secrets
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
   verbs:
   - get
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - mysql.sql.crossplane.io
+  resources:
+  - databases
+  - grants
+  - users
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+- apiGroups:
   - pxc-anonymizer.io
   resources:
+  - anonymizationpolicies
   - backuppointers
   verbs:
   - get
@@ -21,16 +76,65 @@ rules:
 - apiGroups:
   - pxc-anonymizer.io
   resources:
+  - anonymizationpolicies/status
+  - anonymizationruns/status
+  - anonymizationschedules/status
   - backuppointers/status
+  - bootstraps/status
   verbs:
   - get
   - patch
   - update
 - apiGroups:
+  - pxc-anonymizer.io
+  resources:
+  - anonymizationruns
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pxc-anonymizer.io
+  resources:
+  - anonymizationruns/finalizers
+  - anonymizationschedules/finalizers
+  - bootstraps/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - pxc-anonymizer.io
+  resources:
+  - anonymizationschedules
+  - bootstraps
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - pxc.percona.com
   resources:
   - perconaxtradbclusterbackups
   verbs:
+  - create
+  - delete
   - get
   - list
+  - watch
+- apiGroups:
+  - pxc.percona.com
+  resources:
+  - perconaxtradbclusterrestores
+  - perconaxtradbclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
   - watch

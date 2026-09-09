@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // BootstrapPhase identifies the current stage of a bootstrap operation.
@@ -119,7 +120,7 @@ type CrossplaneSpec struct {
 	// +listType=set
 	// +kubebuilder:default={databases,users,grants}
 	Kinds []string `json:"kinds,omitempty"`
-	// A nil selector includes every object of the selected kinds in this namespace.
+	// A nil selector includes every cluster-scoped object of the selected kinds.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 	// +optional
@@ -168,12 +169,28 @@ type BootstrapTargetStatus struct {
 	Message string `json:"message,omitempty"`
 }
 
-// CrossplaneObjectReference identifies a managed resource in the Bootstrap namespace.
+// CrossplaneObjectReference identifies a cluster-scoped managed resource.
 type CrossplaneObjectReference struct {
 	// +required
 	Kind string `json:"kind"`
 	// +required
 	Name string `json:"name"`
+	// +optional
+	UID types.UID `json:"uid,omitempty"`
+}
+
+// CrossplaneRecreation preserves the original UID so reconciliation never deletes a replacement.
+type CrossplaneRecreation struct {
+	// +required
+	Kind string `json:"kind"`
+	// +required
+	Name string `json:"name"`
+	// +required
+	UID types.UID `json:"uid"`
+	// +optional
+	DeletionObserved bool `json:"deletionObserved,omitempty"`
+	// +optional
+	Complete bool `json:"complete,omitempty"`
 }
 
 // CrossplaneStatus records exactly which managed resources were touched or remain pending.
@@ -198,6 +215,48 @@ type CrossplaneStatus struct {
 	// +listMapKey=kind
 	// +listMapKey=name
 	Pending []CrossplaneObjectReference `json:"pending,omitempty"`
+	// +optional
+	// +listType=map
+	// +listMapKey=kind
+	// +listMapKey=name
+	Recreating []CrossplaneRecreation `json:"recreating,omitempty"`
+}
+
+// BootstrapTargetExecution pins identity and restore references across reconciliation restarts.
+type BootstrapTargetExecution struct {
+	// +required
+	PXCCluster string `json:"pxcCluster"`
+	// +optional
+	UID types.UID `json:"uid,omitempty"`
+	// +optional
+	RestoreUID types.UID `json:"restoreUID,omitempty"`
+	// RestoreAttempted prevents recreating a vanished restore after a lost status response.
+	// +optional
+	RestoreAttempted bool `json:"restoreAttempted,omitempty"`
+	// +required
+	Restore RestoreS3Credentials `json:"restore"`
+}
+
+// BootstrapExecutionStatus freezes non-secret execution inputs before external effects.
+type BootstrapExecutionStatus struct {
+	// ID separates repeated executions when trigger values are reused.
+	// +optional
+	ID string `json:"id,omitempty"`
+	// +required
+	SpecHash string `json:"specHash"`
+	// +optional
+	CrossplaneGroup string `json:"crossplaneGroup,omitempty"`
+	// +optional
+	CrossplaneVersion string `json:"crossplaneVersion,omitempty"`
+	// +optional
+	// +listType=map
+	// +listMapKey=kind
+	// +listMapKey=name
+	Selected []CrossplaneObjectReference `json:"selected,omitempty"`
+	// +required
+	// +listType=map
+	// +listMapKey=pxcCluster
+	Targets []BootstrapTargetExecution `json:"targets"`
 }
 
 // BootstrapRunRecord retains the outcome of one completed trigger.
@@ -216,6 +275,8 @@ type BootstrapRunRecord struct {
 
 // BootstrapStatus records progress, touched resources and the last five outcomes.
 type BootstrapStatus struct {
+	// +optional
+	Execution *BootstrapExecutionStatus `json:"execution,omitempty"`
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// +optional
