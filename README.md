@@ -1,27 +1,32 @@
 # pxc-anonymizer
 
 pxc-anonymizer is a Go project for a Kubernetes operator that prepares anonymized Percona XtraDB Cluster backups for development and testing.
-The foundation provides a Kubebuilder manager scaffold and local build, lint, test and publication checks.
+The scaffold defines five API types and provides controller skeletons, generation tooling and local verification.
 
 [TOC]
 
 ## Features
 
-1. **Manager scaffold:** a Go entrypoint and generated Kubernetes configuration.
-2. **Local checks:** Go tests, build configuration tests and strict YAML and Go linting.
+1. **API scaffold:** `BackupPointer`, `AnonymizationPolicy`, `AnonymizationRun`, `AnonymizationSchedule` and `Bootstrap`.
+2. **Local checks:** Go and envtest suites, build configuration tests and strict YAML and Go linting.
 3. **Publication safeguards:** a secrecy guard and exclusions for private working files.
+
+API types and CRDs are generated together.
+We add controller registrations with their implementations.
 
 ## Structure
 
 ```sh
-cmd/                # Manager entrypoint
-config/             # Generated Kubebuilder configuration
-hack/               # Generation boilerplate and secrecy guard
-test/buildconfig/   # Build and publication regression tests
-Taskfile.yml        # Local check entrypoint
-Makefile            # Kubebuilder generation, build and test tooling
-Dockerfile          # Manager image build
-PROJECT             # Kubebuilder project metadata
+api/v1alpha1/         # API types and generated DeepCopy methods
+cmd/                  # Manager entrypoint
+internal/controller/  # Controller skeletons and envtest suite
+config/               # Generated Kubebuilder configuration
+hack/                 # Generation boilerplate and secrecy guard
+test/buildconfig/     # Build and publication regression tests
+Taskfile.yml          # Local check entrypoint
+Makefile              # Kubebuilder generation, build and test tooling
+Dockerfile            # Manager image build
+PROJECT               # Kubebuilder project metadata
 ```
 
 ## Getting Started
@@ -64,7 +69,7 @@ PROJECT             # Kubebuilder project metadata
 | --- | --- |
 | `task help` | List local tasks. |
 | `task lint` | Check secrecy, YAML and Go. |
-| `task test` | Run Go and build configuration tests. |
+| `task test` | Run Go, envtest and build configuration tests. |
 | `make build` | Generate code and compile `bin/manager`. |
 
 ## Contributing

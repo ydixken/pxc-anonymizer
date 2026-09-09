@@ -8,4 +8,45 @@ layout:
 - go.kubebuilder.io/v4
 projectName: pxc-anonymizer
 repo: github.com/ydixken/pxc-anonymizer
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: pxc-anonymizer.io
+  kind: BackupPointer
+  path: github.com/ydixken/pxc-anonymizer/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: pxc-anonymizer.io
+  kind: AnonymizationPolicy
+  path: github.com/ydixken/pxc-anonymizer/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: pxc-anonymizer.io
+  kind: AnonymizationRun
+  path: github.com/ydixken/pxc-anonymizer/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: pxc-anonymizer.io
+  kind: AnonymizationSchedule
+  path: github.com/ydixken/pxc-anonymizer/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: pxc-anonymizer.io
+  kind: Bootstrap
+  path: github.com/ydixken/pxc-anonymizer/api/v1alpha1
+  version: v1alpha1
 version: "3"

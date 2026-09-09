@@ -1,0 +1,8 @@
+## Append samples of your project ##
+resources:
+- v1alpha1_backuppointer.yaml
+- v1alpha1_anonymizationpolicy.yaml
+- v1alpha1_anonymizationrun.yaml
+- v1alpha1_anonymizationschedule.yaml
+- v1alpha1_bootstrap.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
