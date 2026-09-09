@@ -137,7 +137,8 @@ Known fixed generated widths must fit the target column before writes, including
 Table updates and their page checkpoint commit in one transaction; retrying an attempt does not reprocess committed rows.
 The Run's creation timestamp supplies a fixed reference date for retries.
 Dry-run performs validation without table changes, SQL-step writes or checkpoint-database creation.
-Successful completion follows pointer publication, group retention, any requested hold and removal of the temporary cluster and owned Secrets.
+Successful completion follows pointer publication, group retention, any requested hold and removal of the temporary cluster, its copied system-user Secret and owned Percona-generated Secrets.
+The Run-owned seed Secret and policy ConfigMap retain the immutable snapshots until the Run is deleted.
 Failed or deleting Runs stop their active Job before cleanup; successful Jobs follow the configured TTL.
 
 ## Runner invocation and results
