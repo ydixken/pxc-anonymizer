@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -464,7 +465,9 @@ func TestBootstrapTimeoutKeepsCompensationActive(t *testing.T) {
 
 func TestBootstrapRepeatedTriggerUsesNewExecutionIdentity(t *testing.T) {
 	bs := bootstrapTestObject()
+	bs.Name = strings.Repeat("b", 64)
 	bs.Spec.Targets = bs.Spec.Targets[:1]
+	bs.Spec.Targets[0].PXCCluster = strings.Repeat("c", 22)
 	bs.Spec.Trigger = "A"
 	f := newBootstrapFixture(t, bs)
 	names := map[string]bool{}
@@ -483,9 +486,18 @@ func TestBootstrapRepeatedTriggerUsesNewExecutionIdentity(t *testing.T) {
 		if name == "" || id == "" || names[name] || identities[id] {
 			t.Fatal("a repeated trigger reused an execution or restore identity")
 		}
+		for _, prefix := range []string{"restore-job-", "prepare-job-"} {
+			job := prefix + name + "-" + current.Status.Targets[0].PXCCluster
+			if len(job) != 63 || len(validation.IsValidLabelValue(job)) != 0 {
+				t.Fatal("long Bootstrap identity exceeded the derived Percona Job label budget")
+			}
+		}
 		names[name] = true
 		identities[id] = true
 		restore := f.restore(t, name, pxc.RestoreSucceeded)
+		if restore.GetName() != name || metav1.GetControllerOf(restore).Name != bs.Name {
+			t.Fatal("shortening changed durable restore identity or Bootstrap ownership")
+		}
 		if restore.GetAnnotations()[bootstrapExecutionAnnotation] != id {
 			t.Fatal("restore lacks its execution identity")
 		}

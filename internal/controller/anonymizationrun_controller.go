@@ -270,7 +270,14 @@ func (r *AnonymizationRunReconciler) restoreRun(ctx context.Context, run *api.An
 	if cluster.GetUID() != run.Status.TempCluster.UID || !cluster.GetDeletionTimestamp().IsZero() {
 		return r.failRun(ctx, run, runConditionCluster, api.ReasonClusterError, "temporary cluster identity changed or is deleting")
 	}
-	name := run.Status.TempCluster.Name + "-restore"
+	name := run.Status.RestoreName
+	if name == "" {
+		var err error
+		name, err = pxc.RestoreName(run.Status.TempCluster.Name+"-restore", run.Status.TempCluster.Name)
+		if err != nil {
+			return r.failRun(ctx, run, runConditionRestored, api.ReasonRestoreFailed, "restore name cannot fit the Percona Job labels")
+		}
+	}
 	restore := &unstructured.Unstructured{}
 	restore.SetGroupVersionKind(pxc.RestoreGVK)
 	key := client.ObjectKey{Namespace: run.Namespace, Name: name}

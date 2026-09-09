@@ -46,6 +46,8 @@ A legacy v1 pointer without a publication timestamp skips the age check with a `
 `spec.targets` is required and must contain at least one entry.
 Targets are a map list keyed by `pxcCluster`, so duplicate cluster names are rejected.
 Each target requires a nonempty `pxcCluster` and can override `restore` and `containerOptions`.
+Target cluster names must fit Percona's 22-byte limit.
+Generated restore names are deterministically shortened when necessary to keep Percona's derived Job labels within 63 bytes, while retaining each execution's distinct identity.
 The execution contract restores targets in their declared order and in the Bootstrap's namespace.
 An omitted restore endpoint falls back to the S3 endpoint recorded in the pointer.
 Admission defaults the region to `auto`; only an actually empty region inherits the pointer's region.

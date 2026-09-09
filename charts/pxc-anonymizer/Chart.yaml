@@ -2,8 +2,8 @@ apiVersion: v2
 name: pxc-anonymizer
 description: Backup publication, anonymization and restore controllers for Percona XtraDB Cluster.
 type: application
-version: 0.1.0-alpha.2
-appVersion: "v0.1.0-alpha.2"
+version: 0.1.0-alpha.3
+appVersion: "v0.1.0-alpha.3"
 home: https://github.com/ydixken/pxc-anonymizer
 sources:
   - https://github.com/ydixken/pxc-anonymizer

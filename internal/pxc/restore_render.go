@@ -5,6 +5,8 @@
 package pxc
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 
@@ -17,6 +19,26 @@ import (
 	"github.com/ydixken/pxc-anonymizer/internal/pointer"
 )
 
+// Percona v1.20.0 pkg/naming/restore.go:7-16 adds a Job prefix and the cluster suffix.
+const restoreJobNameOverhead = 13
+
+// RestoreName reserves space for Percona's restore and prepare Job label values.
+func RestoreName(candidate, clusterName string) (string, error) {
+	if len(clusterName) > 22 || len(validation.IsDNS1123Subdomain(clusterName)) != 0 {
+		return "", errors.New("restore clusterName must be a valid DNS subdomain of at most 22 bytes")
+	}
+	if len(validation.IsDNS1123Subdomain(candidate)) != 0 {
+		return "", errors.New("restore name must be a valid DNS subdomain")
+	}
+	limit := 63 - restoreJobNameOverhead - len(clusterName)
+	if len(candidate) <= limit {
+		return candidate, nil
+	}
+	sum := sha256.Sum256([]byte(candidate))
+	prefix := strings.TrimRight(candidate[:limit-17], "-.")
+	return prefix + "-" + hex.EncodeToString(sum[:8]), nil
+}
+
 type RestoreRenderOptions struct {
 	Namespace, Name, ClusterName, Destination string
 	Credentials                               api.RestoreS3Credentials
@@ -28,6 +50,9 @@ type RestoreRenderOptions struct {
 func RenderRestore(options RestoreRenderOptions) (*unstructured.Unstructured, error) {
 	if err := validateRenderIdentity(options.Namespace, options.Name, options.ClusterName); err != nil {
 		return nil, err
+	}
+	if len(options.Name)+len(options.ClusterName)+restoreJobNameOverhead > 63 {
+		return nil, errors.New("restore name exceeds the Percona Job label budget")
 	}
 	if options.Owner.APIVersion != api.GroupVersion.String() ||
 		(options.Owner.Kind != "AnonymizationRun" && options.Owner.Kind != "Bootstrap") ||

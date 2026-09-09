@@ -212,13 +212,13 @@ func bootstrapResolvedSource(document *pointer.Document) *api.ResolvedSource {
 	return source
 }
 
-func bootstrapRestoreName(bs *api.Bootstrap, target string) string {
+func bootstrapRestoreName(bs *api.Bootstrap, target string) (string, error) {
 	sum := sha256.Sum256([]byte(string(bs.UID) + "/" + bs.Status.Execution.ID + "/" + bs.Status.ObservedTrigger + "/" + target))
 	prefix := bs.Name + "-" + target
 	if len(prefix) > 56 {
 		prefix = strings.TrimRight(prefix[:56], "-.")
 	}
-	return prefix + "-" + hex.EncodeToString(sum[:3])
+	return pxc.RestoreName(prefix+"-"+hex.EncodeToString(sum[:3]), target)
 }
 
 func (r *BootstrapReconciler) bootstrapCredentials(ctx context.Context, namespace string, credentials api.RestoreS3Credentials) error {
@@ -486,7 +486,12 @@ func (r *BootstrapReconciler) bootstrapResolvePointer(ctx context.Context, bs *a
 			r.bootstrapFail(bs, "CredentialsUnavailable", err.Error())
 			return bootstrapImmediate, nil
 		}
-		if _, err := pxc.RenderRestore(pxc.RestoreRenderOptions{Namespace: bs.Namespace, Name: bootstrapRestoreName(bs, target.PXCCluster), ClusterName: target.PXCCluster, Destination: document.Destination, Credentials: target.Restore, Owner: *metav1.NewControllerRef(bs, api.GroupVersion.WithKind("Bootstrap"))}); err != nil {
+		name, err := bootstrapRestoreName(bs, target.PXCCluster)
+		if err != nil {
+			r.bootstrapFail(bs, "InvalidRestoreConfiguration", err.Error())
+			return bootstrapImmediate, nil
+		}
+		if _, err := pxc.RenderRestore(pxc.RestoreRenderOptions{Namespace: bs.Namespace, Name: name, ClusterName: target.PXCCluster, Destination: document.Destination, Credentials: target.Restore, Owner: *metav1.NewControllerRef(bs, api.GroupVersion.WithKind("Bootstrap"))}); err != nil {
 			r.bootstrapFail(bs, "InvalidRestoreConfiguration", err.Error())
 			return bootstrapImmediate, nil
 		}
@@ -610,9 +615,14 @@ func (r *BootstrapReconciler) bootstrapRestoreTargets(ctx context.Context, bs *a
 			continue
 		}
 		if target.StartedAt == nil {
+			name, err := bootstrapRestoreName(bs, target.PXCCluster)
+			if err != nil {
+				r.bootstrapFail(bs, "InvalidRestoreConfiguration", err.Error())
+				return bootstrapImmediate, nil
+			}
 			now := metav1.NewTime(r.bootstrapTime())
 			target.StartedAt = &now
-			target.RestoreName = bootstrapRestoreName(bs, target.PXCCluster)
+			target.RestoreName = name
 			return bootstrapImmediate, nil
 		}
 		return r.bootstrapRestoreTarget(ctx, bs, i)

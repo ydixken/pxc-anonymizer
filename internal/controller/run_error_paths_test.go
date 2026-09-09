@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -369,5 +370,38 @@ func TestRunStepOnlyLogEmitsBoundedOutcome(t *testing.T) {
 		}
 	default:
 		t.Fatal("step-only log produced no Event")
+	}
+}
+
+func TestRunRestoreNameFitsDerivedJobLabels(t *testing.T) {
+	s := newRunTest(t, func(run *api.AnonymizationRun, _ []client.Object) {
+		run.Spec.TempCluster.NamePrefix = strings.Repeat("a", 20)
+	})
+	s.toRestoring(t)
+	cluster, name := s.run.Status.TempCluster.Name, s.run.Status.RestoreName
+	if len(cluster) != 22 {
+		t.Fatalf("fixture must exercise the maximum temporary cluster length, got %d", len(cluster))
+	}
+	expected, err := pxc.RestoreName(cluster+"-restore", cluster)
+	if err != nil || name == "" || name != expected {
+		t.Fatalf("persisted restore name=%q, want %q: %v", name, expected, err)
+	}
+	for _, prefix := range []string{"prepare-job-", "restore-job-"} {
+		derived := prefix + name + "-" + cluster
+		if len(derived) > 63 || len(validation.IsValidLabelValue(derived)) != 0 {
+			t.Fatalf("invalid derived Percona Job label %q (%d bytes)", derived, len(derived))
+		}
+	}
+	restore := runTestObject(pxc.RestoreGVK.Kind, name)
+	if err := s.reconciler.Get(t.Context(), client.ObjectKeyFromObject(restore), restore); err != nil {
+		t.Fatal(err)
+	}
+	if err := runOwns(s.run, restore); err != nil {
+		t.Fatal(err)
+	}
+	created := s.creates
+	s.step(t)
+	if s.run.Status.RestoreName != name || s.creates != created {
+		t.Fatal("reconciliation changed the recorded restore identity or created another child")
 	}
 }
