@@ -8,13 +8,26 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  verify:
+  lint:
     # Fork code stays on hosted runners with no cluster credentials.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      - name: Review dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          fail-on-scopes: runtime, development, unknown
+          allow-licenses: >-
+            Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MIT,
+            LicenseRef-scancode-google-patent-license-golang
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -25,7 +38,83 @@ jobs:
           go install github.com/go-task/task/v3/cmd/task@v3.53.1
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
           go install github.com/yannh/kubeconform/cmd/kubeconform@v0.8.0
+      - uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf  # v3.1.0
+        with:
+          dockerfile: Dockerfile
       - run: task lint
-      - run: task test
+      - run: make build
       - name: Generated files remain current
         run: git diff --exit-code
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: percona/percona-server:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-mysql-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql --host=127.0.0.1 --user=root --execute='SELECT 1'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      PXC_ANONYMIZER_TEST_MYSQL_DSN: root:ci-mysql-password@tcp(127.0.0.1:3306)/?parseTime=true
+      PXC_ANONYMIZER_TEST_S3_ENDPOINT: http://127.0.0.1:9000
+      PXC_ANONYMIZER_TEST_S3_BUCKET: pxc-ci
+      PXC_ANONYMIZER_TEST_S3_ACCESS_KEY_ID: ci-access
+      PXC_ANONYMIZER_TEST_S3_SECRET_ACCESS_KEY: ci-minio-password
+      PXC_ANONYMIZER_TEST_S3_REGION: us-east-1
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: azure/setup-helm@v5
+      - name: Install Task
+        run: go install github.com/go-task/task/v3/cmd/task@v3.53.1
+      - name: Start MinIO
+        # The pinned workflow linter predates GitHub's service command override.
+        run: |
+          docker run --detach --rm --name pxc-ci-minio --publish 127.0.0.1:9000:9000 \
+            --env MINIO_ROOT_USER="$PXC_ANONYMIZER_TEST_S3_ACCESS_KEY_ID" \
+            --env MINIO_ROOT_PASSWORD="$PXC_ANONYMIZER_TEST_S3_SECRET_ACCESS_KEY" \
+            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+          curl --fail --silent --show-error --retry 30 --retry-all-errors \
+            --retry-delay 1 --retry-max-time 120 --max-time 5 \
+            "$PXC_ANONYMIZER_TEST_S3_ENDPOINT/minio/health/ready"
+          docker exec pxc-ci-minio sh -ec '
+            mc alias set ci http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
+            mc mb ci/pxc-ci
+          '
+      - name: Unit and service-backed suites
+        # Engine requires an absent checkpoint schema; pager leaves its empty schema behind.
+        run: |
+          packages=$(go list ./... | grep -v /e2e)
+          engine=github.com/ydixken/pxc-anonymizer/internal/runner/engine
+          pager=github.com/ydixken/pxc-anonymizer/internal/runner/pager
+          grep -Fx "$engine" <<< "$packages"
+          grep -Fx "$pager" <<< "$packages"
+          remaining=$(grep -Fxv -e "$engine" -e "$pager" <<< "$packages" | tr '\n' ' ')
+          test -n "$remaining"
+          export TEST_PACKAGES="$engine $pager $remaining"
+          export TEST_ARGS='-p=1 -count=1'
+          task test
+      - name: Coverage total
+        run: go tool cover -func=cover.out | tail -n 1 >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload coverage
+        if: env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./cover.out
+          fail_ci_if_error: true
+      - name: Generated files remain current
+        run: git diff --exit-code
+      - name: Remove MinIO and its test data
+        if: always()
+        run: docker rm --force --volumes pxc-ci-minio

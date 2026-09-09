@@ -1,0 +1,78 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Group non-major updates weekly and merge them only after CI passes; major updates remain separate for review.",
+    "Envtest versions derive from go.mod, so separate version rules would conflict with the Makefile.",
+    "GitHub Actions use major tags; digest pinning is intentionally disabled."
+  ],
+  "extends": [
+    "config:recommended",
+    "schedule:weekly",
+    "group:allNonMajor",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "timezone": "Europe/Berlin",
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin"],
+      "automerge": true
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["dependencies/major"]
+    },
+    {
+      "description": "Our chart image version comes from the release tag and appVersion.",
+      "matchManagers": ["helm-values"],
+      "matchFileNames": ["charts/pxc-anonymizer/values.yaml"],
+      "matchDepNames": ["ghcr.io/ydixken/pxc-anonymizer"],
+      "enabled": false
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Keep the documentation build and deployment theme versions aligned.",
+      "customType": "regex",
+      "managerFilePatterns": [".github/workflows/ci.yml", ".github/workflows/docs.yml"],
+      "matchStrings": ["mkdocs-material==(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "mkdocs-material",
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "pep440"
+    },
+    {
+      "description": "The local docs task and workflow must render with the same generator version.",
+      "customType": "regex",
+      "managerFilePatterns": ["Taskfile.yml", ".github/workflows/docs.yml"],
+      "matchStrings": ["github\\.com/elastic/crd-ref-docs@(?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "github.com/elastic/crd-ref-docs",
+      "datasourceTemplate": "go"
+    },
+    {
+      "description": "The installed linter and its custom plugin build must use the same version.",
+      "customType": "regex",
+      "managerFilePatterns": ["Makefile", ".custom-gcl.yml"],
+      "matchStrings": [
+        "GOLANGCI_LINT_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)",
+        "(^|\\n)version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "github.com/golangci/golangci-lint/v2",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["Makefile"],
+      "matchStrings": ["KUSTOMIZE_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "sigs.k8s.io/kustomize/kustomize/v5",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["Makefile"],
+      "matchStrings": ["CONTROLLER_TOOLS_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "sigs.k8s.io/controller-tools",
+      "datasourceTemplate": "go"
+    }
+  ]
+}

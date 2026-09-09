@@ -1,0 +1,68 @@
+name: Docs
+
+# Automatic publishing starts once the site and reference tooling are available.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require documentation inputs
+        run: |
+          for file in mkdocs.yml docs/index.md docs/reference/api.md \
+            hack/crd-ref-docs.yaml hack/check-docs-links.sh; do
+            if [ ! -s "$file" ]; then
+              echo "::error::Required documentation input is missing or empty: $file"
+              exit 1
+            fi
+          done
+          test -x hack/check-docs-links.sh
+          git ls-files --error-unmatch docs/reference/api.md >/dev/null
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+      - name: Check the CRD reference is current
+        run: |
+          mkdir -p "$RUNNER_TEMP/docs-bin"
+          GOBIN="$RUNNER_TEMP/docs-bin" go install github.com/elastic/crd-ref-docs@v0.3.0
+          "$RUNNER_TEMP/docs-bin/crd-ref-docs" --source-path=api/v1alpha1 \
+            --config=hack/crd-ref-docs.yaml --renderer=markdown --output-path=docs/reference/api.md
+          git diff --exit-code -- docs/reference/api.md
+      - name: Check documentation links
+        run: ./hack/check-docs-links.sh
+      - name: Build the site
+        run: |
+          python -m pip install mkdocs-material==9.7.7
+          mkdocs build --strict
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v6
+      - id: deployment
+        uses: actions/deploy-pages@v5

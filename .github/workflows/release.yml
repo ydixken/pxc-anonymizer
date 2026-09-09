@@ -1,4 +1,4 @@
-name: Publish image
+name: Release
 
 on:
   push:
@@ -7,8 +7,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/${{ github.repository }}
+
 jobs:
-  image:
+  manager-image:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -16,22 +24,77 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+      # The native builder cross-compiles both targets; the final stage only copies files.
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Select image tags
+        id: tags
+        run: |
+          {
+            printf 'list<<EOF\n%s:%s\n' "$IMAGE" "$GITHUB_REF_NAME"
+            case "$GITHUB_REF_NAME" in
+              *-*) ;;
+              *) printf '%s:latest\n' "$IMAGE" ;;
+            esac
+            printf 'EOF\n'
+          } >> "$GITHUB_OUTPUT"
       - name: Publish the manager image
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/ydixken/pxc-anonymizer:${{ github.ref_name }}
+          tags: ${{ steps.tags.outputs.list }}
           build-args: VERSION=${{ github.ref_name }}
           labels: |
             org.opencontainers.image.source=https://github.com/ydixken/pxc-anonymizer
             org.opencontainers.image.licenses=Apache-2.0
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  chart:
+    needs: manager-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - name: Package the release chart
+        id: package
+        run: |
+          helm lint charts/pxc-anonymizer --strict
+          helm package charts/pxc-anonymizer \
+            --version "${GITHUB_REF_NAME#v}" --app-version "$GITHUB_REF_NAME" \
+            --destination "$RUNNER_TEMP"
+      - name: Publish the OCI chart
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GH_TOKEN" | helm registry login "$REGISTRY" -u "$GITHUB_ACTOR" --password-stdin
+          helm push "$RUNNER_TEMP/pxc-anonymizer-${GITHUB_REF_NAME#v}.tgz" "oci://$IMAGE/charts"
+
+  release-notes:
+    needs: chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create the GitHub release
+        id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_args=(--verify-tag --generate-notes)
+          case "$GITHUB_REF_NAME" in
+            *-*) release_args+=(--prerelease) ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" "${release_args[@]}"
