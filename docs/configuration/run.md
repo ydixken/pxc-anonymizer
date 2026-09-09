@@ -3,6 +3,10 @@
 `AnonymizationRun` defines one source, policy, temporary database and output configuration.
 Its controller resolves and snapshots the inputs, restores a temporary PXC cluster, runs transformations, backs up the result and cleans up temporary resources.
 
+Use the [pointer-source example](../examples/03-run-from-pointer.yaml) or [explicit-backup example](../examples/04-run-explicit-backup.yaml) as a starting point after preparing their references.
+Plan [temporary storage and credentials](../operations/temp-cluster.md) before creation.
+Use [Retries, deadlines and deletion](../operations/lifecycle.md) to inspect an execution or handle a failure.
+
 ## Admission example
 
 The image names and storage class below are illustrative API values, not a tested restore recipe.
@@ -65,6 +69,8 @@ The controller checks pointer readiness and backup success; admission does not l
 The immutable Secret snapshot holds raw seed bytes, resolved SQL, constant values and source system-user passwords.
 The policy ConfigMap holds canonical Policy JSON, frozen non-secret Run and source snapshots, and the policy hash.
 The runner image and output group are resolved and frozen with those inputs.
+An existing execution continues with its snapshot even when admission permits changes to other spec fields.
+Create a new Run for changed inputs; editing a completed or failed Run does not restart its pipeline.
 
 ## Temporary cluster
 
@@ -182,6 +188,8 @@ SQL-step uncertainty still requires the [explicit recovery described by Policy](
 `status` contains `observedGeneration`, `conditions`, `source`, `policyHash`, `tempCluster`, `restoreName`, `anonymize`, `output`, `prunedBackups`, `startedAt` and `completedAt`.
 `source` uses [ResolvedSource](../reference/api.md#resolvedsource), and `output` uses PublishedBackup.
 The phase enum is `Pending`, `ResolvingSource`, `Provisioning`, `Restoring`, `Anonymizing`, `BackingUp`, `Publishing`, `Pruning`, `CleaningUp`, `Completed` or `Failed`.
+`Complete=True` means the successful pipeline and temporary cleanup have finished.
+On failure, `completedAt` records the failure time before cleanup settles; inspect `CleanedUp` or `Retained` as well as `Failed`.
 
 `tempCluster` status contains `name`, `uid`, `secretName`, `createdAt`, `readyAt` and `deletedAt`.
 The UID records the owned cluster identity before cleanup; known-name leftover Secrets also require matching owner identity before deletion.

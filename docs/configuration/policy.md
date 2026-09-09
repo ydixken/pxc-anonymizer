@@ -3,6 +3,8 @@
 `AnonymizationPolicy` describes database and column transformations without embedding SQL bodies or credentials.
 Its controller validates rules and references and records a canonical policy hash.
 A Run snapshots the validated policy and executes transformations in its temporary database.
+The Policy remains editable; changes after a Run's snapshot do not alter that execution.
+Create the Policy and its Runs in the same namespace, because `policyRef` is a local reference.
 
 ## Admission example
 
@@ -31,11 +33,13 @@ spec:
 ```
 
 Use the [admission-only procedure](../installation.md#validate-a-manifest) to validate it.
+See the [minimal Policy](../examples/02-policy-minimal.yaml) and [SQL-step Policy](../examples/05-policy-sql-steps.yaml) for separate manifests.
 
 ## Policy fields
 
 `spec.databases` is required and must contain at least one entry.
 It is an atomic list, so a pattern-only entry does not need an artificial `name` map key.
+The [generated API reference](../reference/api.md#anonymizationpolicyspec) lists the complete field schema.
 
 | Field | Contract |
 | --- | --- |
@@ -51,6 +55,7 @@ It is an atomic list, so a pattern-only entry does not need an artificial `name`
 
 The determinism contract uses a separate 32-byte seed per Run in `PerRun` mode and a referenced seed of at least 32 bytes for stable mappings in `Fixed` mode.
 Seed values are raw Secret bytes, with no additional base64 decoding.
+Fixed mappings also depend on the canonical Policy hash, strategy and parameters; keeping only the seed unchanged is insufficient.
 
 ## SQL references
 
@@ -58,11 +63,21 @@ Each `steps` entry requires a `name` matching `^[a-z0-9-]{1,63}$` and exactly on
 Both selectors identify a same-namespace object and key.
 `continueOnError` defaults to false.
 Database `pre` and `post` lists reference those step names through `{name: ...}` entries, preserving list order.
-Use a Secret for SQL containing sensitive values.
 Admission rejects missing or conflicting reference forms but does not read the referenced SQL or resolve step names.
+Before execution, the Run freezes resolved SQL from either reference form in its immutable Secret snapshot.
+The policy ConfigMap contains the canonical spec and references, not resolved SQL bodies or Secret values.
+
+> [!warning]
+> Keep sensitive SQL in a Secret referenced by `secretKeyRef`.
+> Use `params.valueFrom` for sensitive constants rather than embedding them in the Policy.
+
 SQL steps execute through the server's multi-statement support; do not split SQL files on semicolons.
-DDL may commit partially even when a later statement fails, so SQL-step checkpoints do not promise transactional rollback of arbitrary SQL.
-An incomplete durable step marker blocks automatic replay with `ErrUncertainOutcome`; inspect and explicitly resolve the uncertain step before resuming.
+
+> [!warning]
+> DDL may commit partially even when a later statement fails, so SQL-step checkpoints do not promise transactional rollback of arbitrary SQL.
+> An incomplete durable step marker blocks automatic replay with `ErrUncertainOutcome`; inspect and explicitly resolve the uncertain step before resuming.
+
+See [Retries, deadlines and deletion](../operations/lifecycle.md) for Run recovery boundaries.
 
 ## Database and table rules
 
@@ -93,7 +108,9 @@ The `ignore.where` contract is a WHERE expression without the keyword, not a com
 Each column rule requires `name` and `strategy`.
 Optional `params` carries strategy parameters; `consistent`, `onNull` and `onEmpty` override their inherited behavior.
 `onNull` and `onEmpty` accept `Keep` or `Generate`.
-`consistent: true` requests equal output for equal input across tables within the Run.
+`consistent: true` maps equal inputs consistently across tables when the seed, Policy hash, strategy and parameters match.
+Database uniqueness collision retries can make equal inputs produce different outputs.
+Use the [strategy reference](../reference/strategies.md) to choose parameters and check target type, width and determinism constraints.
 
 The strategy enum is:
 
@@ -114,7 +131,7 @@ number text constant hash mask null
 | `country` | Defaults to `DE`; VAT and IBAN execution support `DE`. |
 | `length` | Optional integer; maximum `4096` through the column rule. |
 | `case` | Optional `Mixed`, `Upper` or `Lower`. |
-| `unique` | Optional boolean requesting collision retries. |
+| `unique` | Exposed but unused by the runtime. |
 | `min`, `max` | Optional integer bounds. |
 | `maxLength`, `sentences` | Optional text-generation limits. |
 | `value` | Optional string constant; an empty string is preserved. |
@@ -123,7 +140,7 @@ number text constant hash mask null
 | `keepPrefix`, `keepSuffix`, `maskChar` | Optional masking settings. |
 
 `alphanumeric` and `digits` require `params.length`.
-`constant` requires `params.value` or `params.valueFrom`; the schema does not require those two fields to be mutually exclusive.
+`constant` requires `params.value` or `params.valueFrom`; execution rejects a rule with both, although admission does not enforce that exclusion.
 `null`, `mask` and `constant` forbid the `consistent` field, including an explicit false value.
 The schema rejects unknown strategies and enum values; it does not enforce every strategy-specific runtime constraint.
 Custom Unicode email domains require `params.ascii: false`; omitted or true rejects them instead of silently producing non-ASCII output.
@@ -135,11 +152,13 @@ For identical Fixed-mode date outputs across Runs created on different days, set
 Hash output defaults to 64 characters for hex and 44 for standard base64; an explicit length must be at least 1 and no greater than the encoding's default length.
 Hashes are truncated when requested, never extended through padding or repetition.
 UNIQUE collisions use at most eight deterministic row-specific attempts; successful rows are not regenerated during a collision retry.
+These retries respond to database constraint errors; `params.unique` neither creates a constraint nor enables a separate uniqueness check.
 
 ## Status contract
 
 `status.hash` contains `sha256:` followed by 64 lowercase hexadecimal characters from canonical spec-only JSON.
 Resolved SQL, constant values from Secrets and seed bytes are excluded from this hash; their references remain part of the spec.
+Changing content behind an unchanged reference can leave the Policy hash unchanged; it is not a checksum of the resolved payloads.
 The `Valid` condition uses reasons `SpecValid`, `StepRefMissing` or `PatternInvalid`.
 The short name is `apol`.
 
@@ -150,5 +169,8 @@ It creates no children and changes no database contents.
 `Valid=True/SpecValid` and the hash are written only after every required check succeeds.
 A missing reference sets `Valid=False/StepRefMissing`, an invalid pattern or rule sets `PatternInvalid`, and invalidation clears a previously computed hash.
 Conditions identify the generation they describe.
+Require `Valid=True` for the current Policy generation before starting a Run; use the [condition wait procedure](../reference/conditions.md#generations-and-waits).
+Policy validation does not connect to the database or prove its table layout and permissions; the runner checks the restored schema before writes.
 Referenced ConfigMap changes enqueue the matching Policies; Secret changes are picked up by a ten-minute refresh without listing or watching Secrets.
 Runs use a separate immutable snapshot, keeping sensitive resolved content in Secrets rather than the policy ConfigMap or logs.
+Later Policy edits or reference changes do not rewrite an existing snapshot; create a new Run to use new inputs.

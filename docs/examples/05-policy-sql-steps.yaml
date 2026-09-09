@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-sql-steps
+  namespace: database-demo
+data:
+  pre.sql: |
+    SELECT 1;
+# The separator is required to apply the ConfigMap and Policy as one bundle.
+---  # yamllint disable-line rule:document-start
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: AnonymizationPolicy
+metadata:
+  name: example-policy-sql
+  namespace: database-demo
+spec:
+  determinism:
+    mode: PerRun
+  steps:
+    - name: public-precheck
+      configMapKeyRef:
+        name: example-sql-steps
+        key: pre.sql
+    # Supply sensitive SQL separately so its contents never enter this example.
+    - name: sensitive-poststep
+      secretKeyRef:
+        name: example-sensitive-sql
+        key: post.sql
+  databases:
+    - name: application
+      pre:
+        - name: public-precheck
+      post:
+        - name: sensitive-poststep
+      tables:
+        - name: customers
+          columns:
+            - name: email
+              strategy: email
+              params:
+                domain: example.com

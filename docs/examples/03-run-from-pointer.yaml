@@ -1,0 +1,32 @@
+# Supply the same-namespace credentials and an existing storage class before execution.
+# Select PXC and backup images compatible with the source database.
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: AnonymizationRun
+metadata:
+  name: example-run
+  namespace: database-demo
+spec:
+  source:
+    backupPointerRef:
+      name: latest-backup
+    restore:
+      credentialsSecret: backup-credentials
+      endpointURL: https://objects.example.com
+      region: us-east-1
+  policyRef:
+    name: example-policy
+  tempCluster:
+    crVersion: "1.20.0"
+    image: percona/percona-xtradb-cluster:8.4.8-8.1
+    backupImage: percona/percona-xtrabackup:8.4.0-5.1
+    systemUsersSecretRef:
+      name: source-system-users
+    storage:
+      storageClassName: development-storage
+      size: 10Gi
+  output:
+    objectStorage:
+      bucket: example-anonymized
+      region: us-east-1
+      credentialsSecretRef:
+        name: output-credentials
