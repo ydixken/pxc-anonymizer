@@ -17,6 +17,7 @@ tasks:
     cmds:
       - ./hack/check-secrecy.sh
       - yamllint --strict .
+      - ./hack/vendor-crds.sh --check
       - ./hack/sync-chart-crd.sh --check
       - ./hack/sync-chart-rbac.sh --check
       - ./hack/check-chart-rbac.sh
