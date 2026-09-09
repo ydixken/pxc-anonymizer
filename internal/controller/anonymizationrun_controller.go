@@ -34,6 +34,7 @@ import (
 
 	api "github.com/ydixken/pxc-anonymizer/api/v1alpha1"
 	"github.com/ydixken/pxc-anonymizer/internal/conditions"
+	"github.com/ydixken/pxc-anonymizer/internal/metrics"
 	"github.com/ydixken/pxc-anonymizer/internal/objectstore"
 	"github.com/ydixken/pxc-anonymizer/internal/pointer"
 	"github.com/ydixken/pxc-anonymizer/internal/pxc"
@@ -94,13 +95,22 @@ func (r *AnonymizationRunReconciler) Reconcile(ctx context.Context, request ctrl
 func (r *AnonymizationRunReconciler) reconcileRun(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
 	run := &api.AnonymizationRun{}
 	if err := r.Get(ctx, request.NamespacedName, run); err != nil {
+		if apierrors.IsNotFound(err) {
+			metrics.ForgetRun(request.Namespace, request.Name)
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	if !run.DeletionTimestamp.IsZero() && !controllerutil.ContainsFinalizer(run, runFinalizer) {
+		metrics.ForgetRun(run.Namespace, run.Name)
+		return ctrl.Result{}, nil
+	}
+	r.recordRunMetrics(ctx, run)
 	if !run.DeletionTimestamp.IsZero() {
-		if !controllerutil.ContainsFinalizer(run, runFinalizer) {
-			return ctrl.Result{}, nil
+		result, err := r.cleanupRun(ctx, run, true)
+		if err == nil && !controllerutil.ContainsFinalizer(run, runFinalizer) {
+			metrics.ForgetRun(run.Namespace, run.Name)
 		}
-		return r.cleanupRun(ctx, run, true)
+		return result, err
 	}
 	if run.Status.Phase == "" {
 		base := run.DeepCopy()
@@ -758,10 +768,57 @@ func (r *AnonymizationRunReconciler) setRunCondition(run *api.AnonymizationRun, 
 func (r *AnonymizationRunReconciler) patchRun(ctx context.Context, run, base *api.AnonymizationRun, delay time.Duration) (ctrl.Result, error) {
 	run.Status.ObservedGeneration = run.Generation
 	if apiequality.Semantic.DeepEqual(run.Status, base.Status) {
+		r.recordRunMetrics(ctx, run)
 		return ctrl.Result{RequeueAfter: delay}, nil
 	}
 	err := r.Status().Patch(ctx, run, client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{}))
+	if err == nil {
+		r.recordRunMetrics(ctx, run)
+	}
 	return ctrl.Result{RequeueAfter: delay}, err
+}
+
+func (r *AnonymizationRunReconciler) recordRunMetrics(ctx context.Context, run *api.AnonymizationRun) {
+	observation := metrics.RunObservation{StepDurations: runMetricDurations(run)}
+	if temp := run.Status.TempCluster; temp != nil && temp.Name != "" && r.APIReader != nil {
+		cluster := &unstructured.Unstructured{}
+		cluster.SetGroupVersionKind(pxc.ClusterGVK)
+		err := r.APIReader.Get(ctx, client.ObjectKey{Namespace: run.Namespace, Name: temp.Name}, cluster)
+		if apierrors.IsNotFound(err) {
+			present := false
+			observation.TempClusterPresent = &present
+		} else if err == nil && temp.UID != "" && cluster.GetUID() == temp.UID && runOwns(run, cluster) == nil {
+			present := true
+			observation.TempClusterPresent = &present
+		}
+	}
+	metrics.RecordRun(run, observation)
+}
+
+func runMetricDurations(run *api.AnonymizationRun) map[metrics.RunStep]time.Duration {
+	durations := make(map[metrics.RunStep]time.Duration, 4)
+	add := func(step metrics.RunStep, start, end *metav1.Time) {
+		if start != nil && end != nil && !start.IsZero() && !end.IsZero() && !end.Before(start) {
+			durations[step] = end.Sub(start.Time)
+		}
+	}
+	if temp := run.Status.TempCluster; temp != nil {
+		if restored := meta.FindStatusCondition(run.Status.Conditions, runConditionRestored); restored != nil && restored.Status == metav1.ConditionTrue {
+			add(metrics.RunStepRestore, temp.ReadyAt, &restored.LastTransitionTime)
+		}
+	}
+	if attempt := run.Status.Anonymize; attempt != nil {
+		add(metrics.RunStepAnonymize, attempt.StartedAt, attempt.CompletedAt)
+		if output := run.Status.Output; output != nil {
+			add(metrics.RunStepBackup, attempt.CompletedAt, output.CompletedAt)
+		}
+	}
+	if output := run.Status.Output; output != nil {
+		if backedUp := meta.FindStatusCondition(run.Status.Conditions, runConditionBackedUp); backedUp != nil && backedUp.Status == metav1.ConditionTrue {
+			add(metrics.RunStepPublish, &backedUp.LastTransitionTime, output.PublishedAt)
+		}
+	}
+	return durations
 }
 
 func (r *AnonymizationRunReconciler) runExpired(start *metav1.Time, timeout, fallback time.Duration) bool {

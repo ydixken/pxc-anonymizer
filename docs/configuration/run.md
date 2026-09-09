@@ -187,5 +187,44 @@ The phase enum is `Pending`, `ResolvingSource`, `Provisioning`, `Restoring`, `An
 The UID records the owned cluster identity before cleanup; known-name leftover Secrets also require matching owner identity before deletion.
 `anonymize` contains `jobName`, `attempts`, `startedAt`, `completedAt`, `progress` and `lastResult`.
 Progress fields are `tablesTotal`, `tablesDone`, `rowsTotal`, `rowsDone`, `currentTable`, `stepsDone` and `stepsTotal`; the last result contains `class` and `message`.
-The condition contract covers `SourceResolved`, `PolicyValid`, `TempClusterReady`, `Restored`, `Anonymized`, `BackedUp`, `Published`, `CleanedUp`, `Complete` and `Failed`.
+The condition contract covers `SourceResolved`, `PolicyValid`, `TempClusterReady`, `Restored`, `Anonymized`, `BackedUp`, `Published`, `CleanedUp`, `Retained`, `Complete` and `Failed`.
 The short name is `arun`, with Phase, Source, Temp, Output, Complete and Age printer columns.
+
+## Metrics
+
+Run metrics are gauges with the prefix `pxc_anonymizer_run_` and labels `namespace` and `name`.
+Additional labels appear beside the metric suffix below.
+Unknown observations have no sample; an observed zero is a valid value.
+
+| Suffix | Observation |
+| --- | --- |
+| `phase{phase}` | The recorded phase has value 1. |
+| `tables_done`, `tables_expected` | Recorded completed and expected table counts. |
+| `rows_done`, `rows_expected` | Recorded completed and expected row counts. |
+| `step_duration_seconds{step}` | Completed stage interval in seconds. |
+| `start_time_seconds`, `completion_time_seconds` | Recorded Unix timestamps. |
+| `attempts` | Persisted runner attempt count. |
+| `condition_transition_timestamp_seconds{type,status}` | Condition status-transition Unix timestamp. |
+| `temp_cluster_present` | Observed owned PXC resource presence. |
+
+Progress samples require a recorded progress observation.
+The runner does not populate a row total, so `rows_expected` has no sample.
+The expected-count metrics use `_expected`; there are no `_total` aliases.
+Attempts remain absent before an attempt is recorded.
+
+Stage durations use completed, recorded boundaries rather than a running stopwatch:
+
+| `step` | Interval |
+| --- | --- |
+| `restore` | Temporary cluster readiness to successful restore. |
+| `anonymize` | Current runner attempt start to completion. |
+| `backup` | Runner completion to output backup completion. |
+| `publish` | Successful backup condition to pointer publication. |
+
+Skipped stages and intervals with missing or invalid boundaries have no sample.
+Cleanup start is not retained, so no `cleanup` duration sample is emitted.
+
+`temp_cluster_present` is 1 only when a read finds the Run's owned PXC resource with the expected identity, and 0 only when absence is confirmed.
+A read failure or foreign or replacement identity is unknown, not zero.
+A retained cluster can therefore remain present after the Run fails.
+Series remain while Run deletion waits on its cleanup finalizer; they are removed when deletion no longer has that finalizer or the Run is absent.
