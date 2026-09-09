@@ -1,0 +1,25 @@
+# Task is the human/agent entrypoint; Kubebuilder owns the Makefile.
+# Keeping orchestration here limits Makefile changes to scaffold integration.
+# Go build and test tooling, including envtest setup, stays in Make.
+version: "3"
+
+set: [pipefail]
+
+tasks:
+  help:
+    desc: List all tasks.
+    aliases: [default]
+    cmds:
+      - task --list-all
+
+  lint:
+    desc: Check publication safety, YAML and Go.
+    cmds:
+      - ./hack/check-secrecy.sh
+      - yamllint --strict .
+      - make lint
+
+  test:
+    desc: Run Go tests, including build configuration checks.
+    cmds:
+      - make test
