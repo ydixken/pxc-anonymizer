@@ -1,0 +1,17 @@
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: BackupPointer
+metadata:
+  name: latest-backup
+  namespace: database-demo
+spec:
+  source:
+    pxcCluster: example-source
+  target:
+    objectStorage:
+      bucket: example-pointers
+      region: us-east-1
+      credentialsSecretRef:
+        name: pointer-credentials
+    key: latest.json
+  staleAfter: 36h
+  verifyInterval: 1h

@@ -1,7 +1,8 @@
 name: Docs
 
-# Automatic publishing starts once the site and reference tooling are available.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -34,22 +35,17 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
-      - name: Check the CRD reference is current
+      - name: Install documentation tools
         run: |
-          mkdir -p "$RUNNER_TEMP/docs-bin"
-          GOBIN="$RUNNER_TEMP/docs-bin" go install github.com/elastic/crd-ref-docs@v0.3.0
-          "$RUNNER_TEMP/docs-bin/crd-ref-docs" --source-path=api/v1alpha1 \
-            --config=hack/crd-ref-docs.yaml --renderer=markdown --output-path=docs/reference/api.md
-          git diff --exit-code -- docs/reference/api.md
-      - name: Check documentation links
-        run: ./hack/check-docs-links.sh
-      - name: Build the site
-        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.53.1
           python -m pip install mkdocs-material==9.7.7
-          mkdocs build --strict
+      - name: Build documentation and check API freshness
+        run: |
+          task docs
+          git diff --exit-code -- docs/reference/api.md
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: site
+          path: bin/docs-site
 
   deploy:
     needs: build

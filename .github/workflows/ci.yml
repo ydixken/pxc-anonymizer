@@ -118,3 +118,35 @@ jobs:
       - name: Remove MinIO and its test data
         if: always()
         run: docker rm --force --volumes pxc-ci-minio
+
+  docs:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require documentation inputs
+        run: |
+          for file in mkdocs.yml docs/index.md docs/reference/api.md \
+            hack/crd-ref-docs.yaml hack/check-docs-links.sh; do
+            if [ ! -s "$file" ]; then
+              echo "::error::Required documentation input is missing or empty: $file"
+              exit 1
+            fi
+          done
+          test -x hack/check-docs-links.sh
+          git ls-files --error-unmatch docs/reference/api.md >/dev/null
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+      - name: Install documentation tools
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.53.1
+          python -m pip install mkdocs-material==9.7.7
+      - name: Build documentation and check API freshness
+        run: |
+          task docs
+          git diff --exit-code -- docs/reference/api.md

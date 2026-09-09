@@ -29,20 +29,20 @@ spec:
     - pxcCluster: example-target
 ```
 
-Use the [admission-only procedure](../reference/api.md#admission-only-examples) to validate it.
+Use the [admission-only procedure](../installation.md#validate-a-manifest) to validate it.
 
 ## Pointer, restore and targets
 
 `spec.pointer` is required and immutable after creation.
 It requires exactly one of `http`, `s3` or `destination`.
-The HTTP and S3 forms use the [shared pointer-source fields](../reference/api.md#pointer-targets-and-sources).
+The HTTP and S3 forms use the [shared pointer-source fields](../reference/api.md#pointersource).
 A literal destination must match `^s3://.+$`.
 The runtime rejects a literal destination combined with `maxAge`, because it has no pointer publication timestamp to verify.
 Optional `pointer.maxAge` defines the allowed pointer publication age; omission disables the age check under the restore contract.
 When checking a JSON pointer's age, stale or future timestamps and a missing v2 publication timestamp fail validation.
 A legacy v1 pointer without a publication timestamp skips the age check with a `LegacyPointerAgeUnknown` Event.
 
-`spec.restore` is required and uses [RestoreS3Credentials](../reference/api.md#restore-credentials-and-container-arguments).
+`spec.restore` is required and uses [RestoreS3Credentials](../reference/api.md#restores3credentials).
 `spec.targets` is required and must contain at least one entry.
 Targets are a map list keyed by `pxcCluster`, so duplicate cluster names are rejected.
 Each target requires a nonempty `pxcCluster` and can override `restore` and `containerOptions`.
@@ -108,7 +108,7 @@ Completed is absorbing until the trigger changes; rearming completes compensatio
 ## Status contract
 
 Status contains `observedGeneration`, `observedTrigger`, `conditions`, `execution`, `source`, `targets`, `targetsSummary`, `crossplane`, `history`, `startedAt` and `completedAt`.
-`source` uses [ResolvedSource](../reference/api.md#shared-status-shapes).
+`source` uses [ResolvedSource](../reference/api.md#resolvedsource).
 The phase enum is `Pending`, `WaitingForClusters`, `ResolvingPointer`, `PausingCrossplane`, `Restoring`, `ResumingCrossplane`, `RecreatingCrossplane`, `Completed` or `Failed`.
 
 Each target status has `pxcCluster`, `restoreName`, `state`, `startedAt`, `completedAt` and `message`.

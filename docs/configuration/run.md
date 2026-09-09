@@ -43,7 +43,7 @@ spec:
         name: output-credentials
 ```
 
-Use the [admission-only procedure](../reference/api.md#admission-only-examples) to validate it.
+Use the [admission-only procedure](../installation.md#validate-a-manifest) to validate it.
 
 ## Source and immutable fields
 
@@ -51,12 +51,12 @@ Use the [admission-only procedure](../reference/api.md#admission-only-examples) 
 The remaining required field is `spec.output`.
 References resolve in the Run's namespace.
 
-`source` requires exactly one of these forms, plus required [restore credentials](../reference/api.md#restore-credentials-and-container-arguments):
+`source` requires exactly one of these forms, plus required [restore credentials](../reference/api.md#restores3credentials):
 
 | Source field | Contract |
 | --- | --- |
 | `backupPointerRef.name` | BackupPointer whose current publication is selected. |
-| `pointer` | Exactly one HTTP or S3 [PointerSource](../reference/api.md#pointer-targets-and-sources). |
+| `pointer` | Exactly one HTTP or S3 [PointerSource](../reference/api.md#pointersource). |
 | `backupRef.name` | Percona backup resource. |
 | `destination` | Literal backup destination beginning with `s3://`. |
 
@@ -99,7 +99,7 @@ Do not embed credentials in `configuration` or `overrides`.
 
 | Field under `output` | Contract |
 | --- | --- |
-| `objectStorage` | Required [object-storage configuration](../reference/api.md#object-storage). |
+| `objectStorage` | Required [object-storage configuration](../reference/api.md#objectstoragespec). |
 | `backupNamePrefix` | Optional prefix for output backup names. |
 | `containerOptions` | Optional XtraBackup argument arrays. |
 | `pointer` | Optional PointerTarget; omission disables publication in the execution contract. |
@@ -109,7 +109,7 @@ Do not embed credentials in `configuration` or `overrides`.
 The backup-name prefix has a controller default derived from the temporary cluster name; it is not a CRD default.
 The output backup's credential Secret must use `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, because Percona receives a Secret name rather than configurable credential-key names.
 Nondefault `output.objectStorage.keys.accessKeyID` or `secretAccessKey` mappings are rejected before creating children.
-This restriction applies to Percona output backups; pointer publication and direct object-storage access retain the [shared key-remapping support](../reference/api.md#object-storage).
+This restriction applies to Percona output backups; pointer publication and direct object-storage access retain the [shared key-remapping support](../reference/api.md#objectstoragespec).
 The execution contract publishes the pointer before pruning older backups in the same output group.
 Retention preserves backups from active or unsettled Runs and backups whose owner cannot be established, so concurrent Runs may temporarily retain more than the configured count.
 Output backup resources are not owned by the Run and survive its deletion; temporary clusters and runner Jobs have a separate cleanup lifecycle.
@@ -180,7 +180,7 @@ SQL-step uncertainty still requires the [explicit recovery described by Policy](
 ## Status contract
 
 `status` contains `observedGeneration`, `conditions`, `source`, `policyHash`, `tempCluster`, `restoreName`, `anonymize`, `output`, `prunedBackups`, `startedAt` and `completedAt`.
-`source` uses [ResolvedSource](../reference/api.md#shared-status-shapes), and `output` uses PublishedBackup.
+`source` uses [ResolvedSource](../reference/api.md#resolvedsource), and `output` uses PublishedBackup.
 The phase enum is `Pending`, `ResolvingSource`, `Provisioning`, `Restoring`, `Anonymizing`, `BackingUp`, `Publishing`, `Pruning`, `CleaningUp`, `Completed` or `Failed`.
 
 `tempCluster` status contains `name`, `uid`, `secretName`, `createdAt`, `readyAt` and `deletedAt`.

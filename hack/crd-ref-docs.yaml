@@ -1,0 +1,8 @@
+processor:
+  ignoreTypes:
+    - ".*List$"
+  ignoreFields:
+    - "TypeMeta$"
+render:
+  # Match the Kubernetes API types used by this module.
+  kubernetesVersion: "1.36"
