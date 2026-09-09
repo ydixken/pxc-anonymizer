@@ -40,6 +40,7 @@ nav:
   - Home: index.md
   - Quickstart: quickstart.md
   - Installation: installation.md
+  - Anonymization planning: planning.md
   - Configuration:
       - BackupPointer: configuration/backuppointer.md
       - AnonymizationPolicy: configuration/policy.md
@@ -52,6 +53,9 @@ nav:
       - Pointer contract: operations/pointer.md
       - Temporary cluster sizing and storage: operations/temp-cluster.md
       - Retries, deadlines and deletion: operations/lifecycle.md
+      - The pipeline end to end: operations/pipeline.md
+      - Bootstrapping a downstream cluster: operations/bootstrap.md
+      - Argo CD health checks: operations/argocd.md
   - Reference:
       - Prerequisites: reference/prerequisites.md
       - API: reference/api.md

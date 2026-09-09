@@ -1,0 +1,18 @@
+# Restore replaces the existing target database; confirm the target before applying.
+# Prepare the downstream PXC cluster and its same-namespace restore credentials.
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: Bootstrap
+metadata:
+  name: example-bootstrap
+  namespace: database-demo
+spec:
+  pointer:
+    http:
+      url: https://objects.example.com/example-anonymized/latest.json
+  restore:
+    credentialsSecret: output-credentials
+    endpointURL: https://objects.example.com
+    region: us-east-1
+    verifyTLS: true
+  targets:
+    - pxcCluster: example-downstream

@@ -2,6 +2,7 @@
 
 `AnonymizationSchedule` defines a cron schedule and a reusable Run template.
 Its controller creates Runs for eligible cron ticks or manual requests and applies concurrency and history limits.
+Start with the suspended [weekly Schedule example](../examples/06-schedule-weekly.yaml) after completing [anonymization planning](../planning.md).
 
 ## Admission example
 
@@ -102,3 +103,83 @@ Status fields are `observedGeneration`, `conditions`, `active`, `activeCount`, `
 `lastRunPhase` uses the Run phase enum.
 The condition types are `ScheduleValid` and `Ready`; expected reasons include `Parsed`, `InvalidCron`, `Scheduled`, `Suspended` and `Blocked`.
 The short name is `asched`, with Schedule, Suspend, Active, Last Run, Next and Age columns.
+
+## Inspect and enable a Schedule
+
+Prepare the Policy, source, same-namespace credentials, compatible images and storage class before enabling the Schedule.
+Each new Run resolves its inputs and freezes its own execution snapshot; changing a referenced Policy does not rewrite an existing Run.
+
+1. Select the development context confirmed during installation and inspect the adapted weekly example.
+
+   ```sh
+   : "${DEV_CONTEXT:?Set DEV_CONTEXT to the development context you confirmed}"
+   SCHEDULE_NAMESPACE=database-demo
+   SCHEDULE_NAME=example-weekly
+   kubectl --context "$DEV_CONTEXT" -n "$SCHEDULE_NAMESPACE" \
+     get anonymizationschedule "$SCHEDULE_NAME" -o yaml
+   ```
+
+2. Enable scheduling after reviewing the template and concurrency policy.
+
+   ```sh
+   kubectl --context "$DEV_CONTEXT" -n "$SCHEDULE_NAMESPACE" \
+     patch anonymizationschedule "$SCHEDULE_NAME" --type=merge \
+     -p '{"spec":{"suspend":false}}'
+   ```
+
+3. Inspect the scheduling decision and active Runs.
+
+   ```sh
+   kubectl --context "$DEV_CONTEXT" -n "$SCHEDULE_NAMESPACE" \
+     get anonymizationschedule "$SCHEDULE_NAME" -o json |
+     jq '{generation: .metadata.generation,
+       observedGeneration: .status.observedGeneration,
+       conditions: .status.conditions, active: .status.active,
+       nextScheduleTime: .status.nextScheduleTime,
+       lastRunName: .status.lastRunName, lastRunPhase: .status.lastRunPhase}'
+   ```
+
+Require a current-generation `Ready` condition when checking scheduling availability, using the [condition-checking procedure](../reference/conditions.md#generations-and-waits).
+Ready does not prove that a child Run succeeded.
+Inspect that Run's Complete, Failed and cleanup conditions separately.
+
+## Suspend or request a manual Run
+
+Suspension stops new cron and manual creation; it does not cancel already created Runs.
+Resuming can make a missed tick eligible within `startingDeadlineSeconds`.
+Choose that deadline when planning whether an old tick is still useful.
+
+1. Suspend the selected Schedule when new Runs should stop.
+
+   ```sh
+   kubectl --context "$DEV_CONTEXT" -n "$SCHEDULE_NAMESPACE" \
+     patch anonymizationschedule "$SCHEDULE_NAME" --type=merge \
+     -p '{"spec":{"suspend":true}}'
+   ```
+
+2. To request one manual Run, set a new token on the selected Schedule.
+
+   ```sh
+   REQUEST_TOKEN="manual-$(date -u +%Y%m%dT%H%M%SZ)"
+   kubectl --context "$DEV_CONTEXT" -n "$SCHEDULE_NAMESPACE" \
+     annotate anonymizationschedule "$SCHEDULE_NAME" \
+     "pxc-anonymizer.io/run-now=$REQUEST_TOKEN" --overwrite
+   ```
+
+Use a distinct token for each intended request; do not issue two requests with the same timestamp token.
+A suspended Schedule retains this request until enabled, and Forbid retains it while an active Run blocks it.
+The annotation holds one pending token, not a queue of requests.
+Follow the previous enabling and observation procedure when ready to execute it.
+For GitOps-managed Schedules, keep the declared suspension state consistent with your change; see [Argo CD health checks](../operations/argocd.md).
+
+## Concurrency and retention choices
+
+Use Forbid when one temporary cluster at a time is sufficient.
+Allow permits concurrent Runs, so budget storage for each active Run and its retained failures.
+Replace requests deletion of the active Run and waits for its finalizer cleanup; it does not transfer an existing temporary cluster to the new Run.
+
+Successful and failed history limits prune settled Run resources owned by the Schedule.
+Deleting a retained failed Run releases its retained temporary cluster through normal cleanup.
+Output backup retention instead comes from `template.spec.output.retention`, and pointer objects are not Run history entries.
+Keep enough Run history for investigation without treating it as a backup-retention setting.
+See [Retries, deadlines and deletion](../operations/lifecycle.md) for cleanup and output-retention boundaries.

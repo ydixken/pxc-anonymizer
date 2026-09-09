@@ -75,6 +75,30 @@ Custom Unicode email domains require `params.ascii: false`.
 Review null/empty handling, consistency, data types, widths and unique constraints when migrating each column.
 The default `Keep` behavior preserves null and empty inputs; use `onNull: Generate` or `onEmpty: Generate` when replacement is required.
 
+## Environment and orchestration
+
+Table (c) maps the legacy environment interface to resource fields or explicit exclusions.
+V2 resources do not read these legacy variables.
+
+| V1 interface | V2 destination | Migration rule |
+| --- | --- | --- |
+| `CREATE_PERCONA_CLUSTER` | Run `spec.tempCluster` | Temporary-cluster creation is mandatory; direct mode against an existing database is not exposed. |
+| `PROCESS_PER_TABLE` | Operator-managed table traversal | Select tables in the Policy; there is no traversal-mode switch. |
+| `LIMIT` | Run `spec.runner.pageSize` | Set the page size, not a cap on total processed rows. |
+| `DRY_RUN` | Run `spec.runner.dryRun` | Validate transformations without changing table data. |
+| `DB_HOST/USER/PASSWORD` | Run `spec.tempCluster.systemUsersSecretRef` | Supply source credentials through a Secret; the operator selects the temporary database connection. |
+| `MINIO_*` | Object-storage fields and credential Secret references | Split endpoint, bucket and credentials; keep credential values in Secrets. |
+| `WORKER_PROCESSES` | Run `spec.runner.workers` | Set the worker count within the admitted range. |
+| `NAMESPACE` | `metadata.namespace` | Keep resource references in the consumer's namespace. |
+| `PUBLIC_BUCKET` | PointerTarget `objectStorage.bucket` | Configure the pointer bucket separately from backup storage. |
+| `PROD_BOOTSTRAP_INFO` | Run `spec.source.pointer` | Select HTTP or S3 to read the source pointer. |
+| `BOOTSTRAP_SOURCE` | Bootstrap `spec.pointer` | Select HTTP, S3 or a literal backup destination. |
+| Endpoint-selection ConfigMap toggle | Object-storage and restore `endpointURL` | Configure the endpoint directly; no provider toggle is required. |
+
+PointerTarget is used by BackupPointer `spec.target` and Run `spec.output.pointer`.
+For periodic execution, place the mapped Run spec under Schedule `spec.template.spec` and configure its schedule and concurrency policy in the [Schedule guide](../configuration/schedule.md).
+For downstream restores, select existing clusters with Bootstrap `spec.targets` and explicitly configure any Crossplane coordination in the [Bootstrap guide](../configuration/bootstrap.md).
+
 ## Migration boundaries
 
 > [!important]
@@ -89,4 +113,4 @@ See [SQL references](../configuration/policy.md#sql-references) and [lifecycle o
 
 Operations that require host scripts, filesystem access or SQL execution outside these references have no Policy field.
 Treat those as explicit migration gaps rather than silently dropping them or placing SQL in a strategy name.
-This page covers configuration keys and strategy names; it does not map the legacy environment-variable interface.
+These mappings cover configuration keys, strategy names and the legacy environment interface; they do not import or execute a legacy deployment.
