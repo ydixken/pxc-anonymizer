@@ -10,6 +10,10 @@
 !go.mod
 !go.sum
 
+!test/fixtures/mysql/schema.sql
+!test/fixtures/mysql/seed.sql
+!test/fixtures/mysql/finish.sql
+
 /HANDOFF.md
 /tasks/
 /.superpowers/
