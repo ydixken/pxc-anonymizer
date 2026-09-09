@@ -1,0 +1,9 @@
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: AnonymizationRun
+metadata:
+  labels:
+    app.kubernetes.io/name: pxc-anonymizer
+    app.kubernetes.io/managed-by: kustomize
+  name: anonymizationrun-sample
+spec:
+  # TODO(user): Add fields here

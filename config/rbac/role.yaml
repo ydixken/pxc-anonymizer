@@ -1,11 +1,44 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    app.kubernetes.io/name: pxc-anonymizer
-    app.kubernetes.io/managed-by: kustomize
   name: manager-role
 rules:
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - pxc-anonymizer.io
+  resources:
+  - anonymizationpolicies
+  - anonymizationruns
+  - anonymizationschedules
+  - backuppointers
+  - bootstraps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pxc-anonymizer.io
+  resources:
+  - anonymizationpolicies/finalizers
+  - anonymizationruns/finalizers
+  - anonymizationschedules/finalizers
+  - backuppointers/finalizers
+  - bootstraps/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - pxc-anonymizer.io
+  resources:
+  - anonymizationpolicies/status
+  - anonymizationruns/status
+  - anonymizationschedules/status
+  - backuppointers/status
+  - bootstraps/status
+  verbs:
+  - get
+  - patch
+  - update

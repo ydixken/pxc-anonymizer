@@ -18,3 +18,22 @@ resources:
 - metrics_auth_role.yaml
 - metrics_auth_role_binding.yaml
 - metrics_reader_role.yaml
+# For each CRD, "Admin", "Editor" and "Viewer" roles are scaffolded by
+# default, aiding admins in cluster management. Those roles are
+# not used by the pxc-anonymizer itself. You can comment the following lines
+# if you do not want those helpers be installed with your Project.
+- bootstrap_admin_role.yaml
+- bootstrap_editor_role.yaml
+- bootstrap_viewer_role.yaml
+- anonymizationschedule_admin_role.yaml
+- anonymizationschedule_editor_role.yaml
+- anonymizationschedule_viewer_role.yaml
+- anonymizationrun_admin_role.yaml
+- anonymizationrun_editor_role.yaml
+- anonymizationrun_viewer_role.yaml
+- anonymizationpolicy_admin_role.yaml
+- anonymizationpolicy_editor_role.yaml
+- anonymizationpolicy_viewer_role.yaml
+- backuppointer_admin_role.yaml
+- backuppointer_editor_role.yaml
+- backuppointer_viewer_role.yaml
