@@ -21,7 +21,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -54,7 +56,26 @@ var _ = Describe("AnonymizationRun Controller", func() {
 						Name:      resourceName,
 						Namespace: resourceNamespace,
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: pxcanonymizeriov1alpha1.AnonymizationRunSpec{
+						Source: pxcanonymizeriov1alpha1.RunSource{
+							Destination: admissionDestination,
+							Restore: pxcanonymizeriov1alpha1.RestoreS3Credentials{
+								CredentialsSecret: admissionCredentials,
+							},
+						},
+						PolicyRef: corev1.LocalObjectReference{Name: admissionPolicyName},
+						TempCluster: pxcanonymizeriov1alpha1.TempClusterSpec{
+							CRVersion: admissionPXCVersion, Image: admissionPXCImage, BackupImage: admissionBackupImage,
+							Storage: pxcanonymizeriov1alpha1.TempClusterStorage{
+								StorageClassName: admissionStorageClass, Size: resource.MustParse("10Gi"),
+							},
+						},
+						Output: pxcanonymizeriov1alpha1.OutputSpec{
+							ObjectStorage: pxcanonymizeriov1alpha1.ObjectStorageSpec{
+								Bucket: "example-output", EndpointURL: admissionEndpoint,
+							},
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    # Fork code stays on hosted runners with no cluster credentials.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: azure/setup-helm@v5
+      - name: Install local check tools
+        run: |
+          pipx install yamllint
+          go install github.com/go-task/task/v3/cmd/task@v3.53.1
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.8.0
+      - run: task lint
+      - run: task test
+      - name: Generated files remain current
+        run: git diff --exit-code

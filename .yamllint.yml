@@ -4,6 +4,7 @@ ignore:
   - tasks/
   # Generators own the formatting of these outputs.
   - config/
+  - test/crds/
   - bin/
   - dist/
   - site/

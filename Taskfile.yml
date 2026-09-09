@@ -17,9 +17,18 @@ tasks:
     cmds:
       - ./hack/check-secrecy.sh
       - yamllint --strict .
+      - ./hack/sync-chart-crd.sh --check
+      - ./hack/sync-chart-rbac.sh --check
+      - ./hack/check-chart-rbac.sh
+      - actionlint
       - make lint
 
   test:
     desc: Run Go tests, including build configuration checks.
     cmds:
       - make test
+
+  e2e:
+    desc: Publish and read one BackupPointer on an explicitly selected development context.
+    cmds:
+      - python3 hack/smoke-backuppointer.py {{.CLI_ARGS}}

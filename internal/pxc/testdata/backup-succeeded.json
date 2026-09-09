@@ -1,0 +1,25 @@
+{
+  "apiVersion": "pxc.percona.com/v1",
+  "kind": "PerconaXtraDBClusterBackup",
+  "metadata": {
+    "name": "example-backup",
+    "namespace": "example",
+    "creationTimestamp": "2026-01-02T09:00:00Z"
+  },
+  "spec": {
+    "pxcCluster": "example-source",
+    "storageName": "daily"
+  },
+  "status": {
+    "state": "Succeeded",
+    "storageName": "daily",
+    "destination": "s3://example-backups/daily/example-backup",
+    "completed": "2026-01-02T12:00:00+02:00",
+    "s3": {
+      "bucket": "example-backups/daily",
+      "endpointUrl": "https://backup-source.example.com",
+      "region": "example-region",
+      "credentialsSecret": "example-source-credentials"
+    }
+  }
+}
