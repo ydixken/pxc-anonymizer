@@ -22,3 +22,23 @@ Passing a `Document` also sets the backup-name object metadata.
 `Head` distinguishes a missing object through `Found=false`; `GetJSON` returns `objectstore.ErrNotFound`.
 Invalid credentials and unreachable endpoints have separate error sentinels.
 Missing Secrets remain recognizable with Kubernetes `IsNotFound`.
+
+## MinIO service test
+
+`TestMinIOPointerRoundTrip` checks a stored schema-v2 pointer through PUT, HEAD and GET, including `application/json`, `no-cache` and the ETag.
+Use an existing MinIO bucket with permission to read, write and delete objects under `service-test/objectstore/`.
+The test uses path-style requests and verifies HTTPS certificates with system trust.
+
+1. Supply `PXC_ANONYMIZER_TEST_S3_ENDPOINT` as an absolute HTTP or HTTPS origin and `PXC_ANONYMIZER_TEST_S3_BUCKET` as the existing bucket name.
+   Supply credentials through `PXC_ANONYMIZER_TEST_S3_ACCESS_KEY_ID` and `PXC_ANONYMIZER_TEST_S3_SECRET_ACCESS_KEY` in the process environment.
+   Set `PXC_ANONYMIZER_TEST_S3_REGION` if the service uses a region other than the test default `us-east-1`.
+2. Run from the repository root:
+
+   ```sh
+   go test ./internal/objectstore -run '^TestMinIOPointerRoundTrip$' -count=1 -v
+   ```
+
+An unset endpoint skips this service test.
+Once configured, missing inputs, unreachable storage, failed assertions and cleanup errors fail the test.
+The test writes one random object key, deletes only that key even after a failed upload response, and confirms its absence with HEAD.
+Storage operations have a 30-second deadline, and cleanup has a separate 30-second deadline.
