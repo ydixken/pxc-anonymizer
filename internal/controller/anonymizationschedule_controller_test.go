@@ -78,7 +78,7 @@ var _ = Describe("AnonymizationSchedule Controller", func() {
 								},
 								Output: pxcanonymizeriov1alpha1.OutputSpec{
 									ObjectStorage: pxcanonymizeriov1alpha1.ObjectStorageSpec{
-										Bucket:      "example-output",
+										Bucket:      admissionOutputBucket,
 										EndpointURL: admissionEndpoint,
 									},
 								},

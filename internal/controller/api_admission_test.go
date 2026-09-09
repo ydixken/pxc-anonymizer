@@ -30,6 +30,11 @@ import (
 )
 
 const (
+	admissionExample                         = "example"
+	admissionOutputBucket                    = "example-output"
+	admissionAPIVersionField                 = "apiVersion"
+	admissionKindField                       = "kind"
+	admissionMetadataField                   = "metadata"
 	admissionPointerURL                      = "https://example.com/latest.json"
 	admissionPointerField                    = "pointer"
 	admissionStrategyField                   = "strategy"
@@ -88,10 +93,10 @@ const (
 // Unstructured fixtures preserve omission so these tests exercise API-server defaulting.
 func admissionResource(kind string, spec map[string]any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion":       "pxc-anonymizer.io/v1alpha1",
-		"kind":             kind,
-		"metadata":         map[string]any{"generateName": "admission-", "namespace": "default"},
-		admissionSpecField: spec,
+		admissionAPIVersionField: "pxc-anonymizer.io/v1alpha1",
+		admissionKindField:       kind,
+		admissionMetadataField:   map[string]any{"generateName": "admission-", "namespace": "default"},
+		admissionSpecField:       spec,
 	}}
 }
 

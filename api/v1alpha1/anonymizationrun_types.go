@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // RunSource selects one backup source and supplies its restore credentials.
@@ -227,6 +228,8 @@ const (
 type TempClusterStatus struct {
 	// +optional
 	Name string `json:"name,omitempty"`
+	// +optional
+	UID types.UID `json:"uid,omitempty"`
 	// +optional
 	SecretName string `json:"secretName,omitempty"`
 	// +optional

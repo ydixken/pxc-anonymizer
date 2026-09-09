@@ -1,0 +1,15 @@
+{
+  "apiVersion": "pxc.percona.com/v1",
+  "kind": "PerconaXtraDBClusterBackup",
+  "metadata": {
+    "name": "example-output-20260102t030405z",
+    "namespace": "renderer-tests",
+    "labels": {"pxc-anonymizer.io/run": "example-run", "pxc-anonymizer.io/output-group": "example-schedule", "pxc-anonymizer.io/output": "anonymized"},
+    "finalizers": ["percona.com/delete-backup"]
+  },
+  "spec": {
+    "pxcCluster": "anon-01234567",
+    "storageName": "anonymized",
+    "containerOptions": {"args": {"xbcloud": ["--parallel=4"], "xtrabackup": ["--read-buffer-size=64M"]}}
+  }
+}

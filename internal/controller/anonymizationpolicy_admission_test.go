@@ -49,7 +49,7 @@ var _ = Describe("AnonymizationPolicy API admission", Label("admission"), func()
 
 	It("accepts Fixed determinism with a Secret and an intentionally empty constant", func() {
 		spec := admissionPolicySpec(map[string]any{admissionNameField: "environment", admissionStrategyField: admissionConstant, admissionParamsField: map[string]any{admissionValueField: ""}})
-		spec[admissionDeterminismField] = map[string]any{admissionModeField: "Fixed", "seedSecretRef": map[string]any{admissionNameField: "example-seed", admissionKeyField: "seed"}}
+		spec[admissionDeterminismField] = map[string]any{admissionModeField: runFixedSeedMode, "seedSecretRef": map[string]any{admissionNameField: "example-seed", admissionKeyField: "seed"}}
 		spec["steps"] = []any{map[string]any{admissionNameField: "prepare", "configMapKeyRef": map[string]any{admissionNameField: "example-sql", admissionKeyField: admissionSQLKey}}}
 		createAdmissionResource("AnonymizationPolicy", spec)
 	})
@@ -62,7 +62,7 @@ var _ = Describe("AnonymizationPolicy API admission", Label("admission"), func()
 		Entry("missing alphanumeric length", map[string]any{admissionStrategyField: "alphanumeric"}, "alphanumeric and digits require params.length"),
 		Entry("missing digits length", map[string]any{admissionStrategyField: "digits"}, "alphanumeric and digits require params.length"),
 		Entry("missing constant", map[string]any{admissionStrategyField: admissionConstant}, "constant requires params.value or params.valueFrom"),
-		Entry("consistent constant", map[string]any{admissionStrategyField: admissionConstant, admissionParamsField: map[string]any{admissionValueField: "example"}, admissionConsistentField: false}, "null, mask and constant do not accept consistent"),
+		Entry("consistent constant", map[string]any{admissionStrategyField: admissionConstant, admissionParamsField: map[string]any{admissionValueField: admissionExample}, admissionConsistentField: false}, "null, mask and constant do not accept consistent"),
 		Entry("consistent mask", map[string]any{admissionStrategyField: "mask", admissionConsistentField: true}, "null, mask and constant do not accept consistent"),
 		Entry("consistent null", map[string]any{admissionStrategyField: "null", admissionConsistentField: false}, "null, mask and constant do not accept consistent"),
 		Entry("oversized length", map[string]any{admissionStrategyField: "digits", admissionParamsField: map[string]any{"length": int64(4097)}}, "params.length must not exceed 4096"),
@@ -70,7 +70,7 @@ var _ = Describe("AnonymizationPolicy API admission", Label("admission"), func()
 
 	It("requires a seed for Fixed determinism and exactly one SQL reference", func() {
 		spec := admissionPolicySpec(map[string]any{admissionNameField: admissionEmail, admissionStrategyField: admissionEmail})
-		spec[admissionDeterminismField] = map[string]any{admissionModeField: "Fixed"}
+		spec[admissionDeterminismField] = map[string]any{admissionModeField: runFixedSeedMode}
 		rejectAdmissionResource("AnonymizationPolicy", spec, "Fixed determinism requires seedSecretRef")
 		delete(spec, admissionDeterminismField)
 		step := map[string]any{admissionNameField: "prepare"}

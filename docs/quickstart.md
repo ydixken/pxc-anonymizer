@@ -114,4 +114,5 @@ Setting a public URL in a BackupPointer does not change bucket access policy.
 
 A successful read prints `true`.
 Check that the JSON name and destination match `status.current` before using it for a restore.
-The other four API kinds are available for [admission validation](reference/api.md), with their controllers deferred beyond M1.
+To transform the selected backup, configure a [Policy](configuration/policy.md) and [Run](configuration/run.md), then use a [Schedule](configuration/schedule.md) for repeated refreshes.
+A [Bootstrap](configuration/bootstrap.md) restores the published output into existing development targets.

@@ -1,16 +1,17 @@
 # pxc-anonymizer
 
-pxc-anonymizer is a Kubernetes operator for preparing Percona XtraDB Cluster backup workflows for development and testing.
-The M1 release publishes BackupPointers and installs five validated API contracts; the anonymization, scheduling and restore controllers follow in later releases.
+pxc-anonymizer is a Kubernetes operator for preparing anonymized Percona XtraDB Cluster backups for development and testing.
+It publishes backup pointers, validates transformation policies, runs isolated anonymization jobs, schedules refreshes and restores their output into development clusters.
 
 [TOC]
 
 ## Features
 
 1. **Backup pointers:** publish the latest successful PXC backup as reusable JSON, with separate readiness and freshness conditions.
-2. **Five API contracts:** BackupPointer, AnonymizationPolicy, AnonymizationRun, AnonymizationSchedule and Bootstrap.
-3. **Explicit storage access:** same-namespace credential references and configurable S3 endpoints.
-4. **Local checks:** focused Go and admission tests, strict linting and publication safeguards.
+2. **Anonymization workflows:** validate policies, restore temporary clusters, transform data and publish retained backups.
+3. **Scheduled restores:** create Runs from cron or manual requests and coordinate downstream restores with Crossplane.
+4. **Explicit storage access:** same-namespace credential references and configurable S3 endpoints.
+5. **Local checks:** focused Go and admission tests, strict linting and publication safeguards.
 
 ## Structure
 

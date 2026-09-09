@@ -219,7 +219,7 @@ func TestBackupPointerCredentialConditions(t *testing.T) {
 		{name: "missing", reason: api.ReasonCredentialsUnavailable},
 		{name: "invalid", reason: api.ReasonCredentialsInvalid, secret: &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "storage-credentials", Namespace: reconcileNamespace},
-			Data:       map[string][]byte{"AWS_ACCESS_KEY_ID": []byte("synthetic-access")},
+			Data:       map[string][]byte{runAWSAccessKey: []byte("synthetic-access")},
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {

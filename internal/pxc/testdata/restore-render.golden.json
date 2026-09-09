@@ -1,0 +1,18 @@
+{
+  "apiVersion": "pxc.percona.com/v1",
+  "kind": "PerconaXtraDBClusterRestore",
+  "metadata": {
+    "name": "anon-01234567-restore",
+    "namespace": "renderer-tests",
+    "ownerReferences": [{"apiVersion": "pxc-anonymizer.io/v1alpha1", "kind": "Bootstrap", "name": "example-bootstrap", "uid": "example-bootstrap-uid", "controller": true, "blockOwnerDeletion": true}]
+  },
+  "spec": {
+    "pxcCluster": "anon-01234567",
+    "backupSource": {
+      "destination": "s3://example-source/daily/source-full",
+      "s3": {"bucket": "example-source", "credentialsSecret": "restore-credentials", "endpointUrl": "https://source.example.com", "region": "us-east-1"},
+      "verifyTLS": false
+    },
+    "containerOptions": {"args": {"xbcloud": ["--parallel=256"]}}
+  }
+}

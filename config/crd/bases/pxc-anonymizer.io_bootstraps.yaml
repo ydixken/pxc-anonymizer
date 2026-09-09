@@ -105,8 +105,8 @@ spec:
                     default: true
                     type: boolean
                   selector:
-                    description: A nil selector includes every object of the selected
-                      kinds in this namespace.
+                    description: A nil selector includes every cluster-scoped object
+                      of the selected kinds.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
@@ -507,12 +507,18 @@ spec:
                 properties:
                   paused:
                     items:
-                      description: CrossplaneObjectReference identifies a managed
-                        resource in the Bootstrap namespace.
+                      description: CrossplaneObjectReference identifies a cluster-scoped
+                        managed resource.
                       properties:
                         kind:
                           type: string
                         name:
+                          type: string
+                        uid:
+                          description: |-
+                            UID is a type that holds unique ID values, including UUIDs.  Because we
+                            don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                            intent and helps make sure that UIDs and names do not get conflated.
                           type: string
                       required:
                       - kind
@@ -525,12 +531,18 @@ spec:
                     x-kubernetes-list-type: map
                   pending:
                     items:
-                      description: CrossplaneObjectReference identifies a managed
-                        resource in the Bootstrap namespace.
+                      description: CrossplaneObjectReference identifies a cluster-scoped
+                        managed resource.
                       properties:
                         kind:
                           type: string
                         name:
+                          type: string
+                        uid:
+                          description: |-
+                            UID is a type that holds unique ID values, including UUIDs.  Because we
+                            don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                            intent and helps make sure that UIDs and names do not get conflated.
                           type: string
                       required:
                       - kind
@@ -543,16 +555,51 @@ spec:
                     x-kubernetes-list-type: map
                   recreated:
                     items:
-                      description: CrossplaneObjectReference identifies a managed
-                        resource in the Bootstrap namespace.
+                      description: CrossplaneObjectReference identifies a cluster-scoped
+                        managed resource.
                       properties:
                         kind:
                           type: string
                         name:
                           type: string
+                        uid:
+                          description: |-
+                            UID is a type that holds unique ID values, including UUIDs.  Because we
+                            don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                            intent and helps make sure that UIDs and names do not get conflated.
+                          type: string
                       required:
                       - kind
                       - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - kind
+                    - name
+                    x-kubernetes-list-type: map
+                  recreating:
+                    items:
+                      description: CrossplaneRecreation preserves the original UID
+                        so reconciliation never deletes a replacement.
+                      properties:
+                        complete:
+                          type: boolean
+                        deletionObserved:
+                          type: boolean
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                        uid:
+                          description: |-
+                            UID is a type that holds unique ID values, including UUIDs.  Because we
+                            don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                            intent and helps make sure that UIDs and names do not get conflated.
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      - uid
                       type: object
                     type: array
                     x-kubernetes-list-map-keys:
@@ -561,12 +608,18 @@ spec:
                     x-kubernetes-list-type: map
                   resumed:
                     items:
-                      description: CrossplaneObjectReference identifies a managed
-                        resource in the Bootstrap namespace.
+                      description: CrossplaneObjectReference identifies a cluster-scoped
+                        managed resource.
                       properties:
                         kind:
                           type: string
                         name:
+                          type: string
+                        uid:
+                          description: |-
+                            UID is a type that holds unique ID values, including UUIDs.  Because we
+                            don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                            intent and helps make sure that UIDs and names do not get conflated.
                           type: string
                       required:
                       - kind
@@ -577,6 +630,99 @@ spec:
                     - kind
                     - name
                     x-kubernetes-list-type: map
+                type: object
+              execution:
+                description: BootstrapExecutionStatus freezes non-secret execution
+                  inputs before external effects.
+                properties:
+                  crossplaneGroup:
+                    type: string
+                  crossplaneVersion:
+                    type: string
+                  id:
+                    description: ID separates repeated executions when trigger values
+                      are reused.
+                    type: string
+                  selected:
+                    items:
+                      description: CrossplaneObjectReference identifies a cluster-scoped
+                        managed resource.
+                      properties:
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                        uid:
+                          description: |-
+                            UID is a type that holds unique ID values, including UUIDs.  Because we
+                            don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                            intent and helps make sure that UIDs and names do not get conflated.
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - kind
+                    - name
+                    x-kubernetes-list-type: map
+                  specHash:
+                    type: string
+                  targets:
+                    items:
+                      description: BootstrapTargetExecution pins identity and restore
+                        references across reconciliation restarts.
+                      properties:
+                        pxcCluster:
+                          type: string
+                        restore:
+                          description: RestoreS3Credentials supplies the inline S3
+                            fields needed by a PXC restore.
+                          properties:
+                            credentialsSecret:
+                              description: CredentialsSecret names a Secret in the
+                                resource's namespace with AWS credential keys.
+                              type: string
+                            endpointURL:
+                              description: EndpointURL falls back to the endpoint
+                                carried in the pointer when unset.
+                              type: string
+                            region:
+                              default: auto
+                              type: string
+                            verifyTLS:
+                              type: boolean
+                          required:
+                          - credentialsSecret
+                          type: object
+                        restoreAttempted:
+                          description: RestoreAttempted prevents recreating a vanished
+                            restore after a lost status response.
+                          type: boolean
+                        restoreUID:
+                          description: |-
+                            UID is a type that holds unique ID values, including UUIDs.  Because we
+                            don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                            intent and helps make sure that UIDs and names do not get conflated.
+                          type: string
+                        uid:
+                          description: |-
+                            UID is a type that holds unique ID values, including UUIDs.  Because we
+                            don't ONLY use UUIDs, this is an alias to string.  Being a type captures
+                            intent and helps make sure that UIDs and names do not get conflated.
+                          type: string
+                      required:
+                      - pxcCluster
+                      - restore
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - pxcCluster
+                    x-kubernetes-list-type: map
+                required:
+                - specHash
+                - targets
                 type: object
               history:
                 items:

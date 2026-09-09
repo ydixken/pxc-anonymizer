@@ -1,7 +1,7 @@
 # Installation
 
 Install the chart from this repository into a development cluster with the Percona XtraDB Cluster Operator and its backup CRD already installed.
-The M1 manager reconciles BackupPointer only; the chart installs all five API schemas.
+The manager reconciles all five API kinds, and the chart installs their schemas.
 The manager requires the PXC backup API and fails startup when it is absent.
 
 ## Prerequisites
@@ -10,7 +10,9 @@ Use Helm 3, kubectl, and access to the intended development cluster.
 Install a PXC operator compatible with the backup objects you use; this release's PXC views target the `v1.20.0` contract.
 Publishing pointers also needs an existing S3-compatible bucket and a same-namespace credential Secret, described in the [quickstart](quickstart.md).
 An image must be published and readable by your cluster before installation.
+Use a chart and image from the same release revision.
 The image repository is `ghcr.io/ydixken/pxc-anonymizer`; choose an existing image tag from the [repository container packages](https://github.com/users/ydixken/packages?repo_name=pxc-anonymizer).
+Version `v0.1.0-alpha.1` implements BackupPointer only; the other workflows require an image containing the runtime controllers described by this checkout.
 The commands below do not assume an unpublished tag is available.
 
 ## Select the development cluster
@@ -89,6 +91,8 @@ Continue with the [BackupPointer quickstart](quickstart.md).
 | `image.repository` | Manager image repository. |
 | `image.tag` | Published image tag to deploy. |
 | `image.pullPolicy` | Kubernetes image-pull policy. |
+| `runner.image.repository` | Runner repository override; empty inherits the manager repository. |
+| `runner.image.tag` | Runner tag override; empty inherits the manager tag. |
 | `watchNamespaces` | Optional list limiting the manager's cache scope. |
 | `leaderElection.enabled` | Leader election; defaults to `true`. |
 | `crds.install` | Install the five CRDs; defaults to `true`. |
@@ -96,6 +100,8 @@ Continue with the [BackupPointer quickstart](quickstart.md).
 
 `watchNamespaces` limits what the cache watches; it does not reduce the chart's cluster-wide RBAC permissions.
 The chart provides the manager ServiceAccount, RBAC, health probes and authenticated HTTPS metrics.
-Monitoring dashboards, alert rules and the later runner are outside this installation.
+The chart supplies the resolved runner image through the non-secret `PXC_ANONYMIZER_RUNNER_IMAGE` environment variable.
+The manager's `--runner-image` flag defaults to that value; an explicit flag overrides the environment, and a Run's `spec.runner.image` takes precedence over both.
+Monitoring dashboards and alert rules are outside this installation.
 CRDs are shared cluster resources, and their retention is deliberate because deleting a CRD deletes its custom resources.
 For an upgrade, use the same release name and inspect the chart's CRD changes before applying them.

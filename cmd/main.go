@@ -59,6 +59,9 @@ func init() {
 
 // nolint:gocyclo
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "anonymize" {
+		os.Exit(runAnonymize(ctrl.SetupSignalHandler(), os.Args[2:], os.Stdout, os.Stderr))
+	}
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var webhookCertPath, webhookCertName, webhookCertKey string
@@ -67,6 +70,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var watchNamespaces string
+	var runnerImage string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -87,6 +91,8 @@ func main() {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.StringVar(&watchNamespaces, "watch-namespaces", "",
 		"Comma-separated namespaces to watch; empty watches all namespaces.")
+	flag.StringVar(&runnerImage, "runner-image", os.Getenv("PXC_ANONYMIZER_RUNNER_IMAGE"),
+		"Image for anonymization Jobs when a Run does not specify its own runner image.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -202,6 +208,30 @@ func main() {
 		Client: mgr.GetClient(), Scheme: mgr.GetScheme(), APIReader: mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to register BackupPointer controller")
+		os.Exit(1)
+	}
+	if err := (&controller.AnonymizationPolicyReconciler{
+		Client: mgr.GetClient(), Scheme: mgr.GetScheme(), APIReader: mgr.GetAPIReader(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to register AnonymizationPolicy controller")
+		os.Exit(1)
+	}
+	if err := (&controller.AnonymizationRunReconciler{
+		Client: mgr.GetClient(), Scheme: mgr.GetScheme(), APIReader: mgr.GetAPIReader(), RunnerImage: runnerImage,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to register AnonymizationRun controller")
+		os.Exit(1)
+	}
+	if err := (&controller.AnonymizationScheduleReconciler{
+		Client: mgr.GetClient(), Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to register AnonymizationSchedule controller")
+		os.Exit(1)
+	}
+	if err := (&controller.BootstrapReconciler{
+		Client: mgr.GetClient(), Scheme: mgr.GetScheme(), APIReader: mgr.GetAPIReader(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to register Bootstrap controller")
 		os.Exit(1)
 	}
 
