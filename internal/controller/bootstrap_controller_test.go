@@ -54,7 +54,15 @@ var _ = Describe("Bootstrap Controller", func() {
 						Name:      resourceName,
 						Namespace: resourceNamespace,
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: pxcanonymizeriov1alpha1.BootstrapSpec{
+						Pointer: pxcanonymizeriov1alpha1.BootstrapSource{
+							Destination: admissionDestination,
+						},
+						Restore: pxcanonymizeriov1alpha1.RestoreS3Credentials{
+							CredentialsSecret: admissionCredentials,
+						},
+						Targets: []pxcanonymizeriov1alpha1.BootstrapTarget{{PXCCluster: "example-target"}},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

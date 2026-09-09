@@ -11,13 +11,35 @@ spec:
     kind: BackupPointer
     listKind: BackupPointerList
     plural: backuppointers
+    shortNames:
+    - bp
     singular: backuppointer
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.source.pxcCluster
+      name: Cluster
+      type: string
+    - jsonPath: .status.current.backupName
+      name: Backup
+      type: string
+    - jsonPath: .status.current.publishedAt
+      name: Published
+      type: date
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Fresh')].status
+      name: Fresh
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: BackupPointer is the Schema for the backuppointers API
+        description: BackupPointer publishes the latest successful backup as a reusable
+          pointer.
         properties:
           apiVersion:
             description: |-
@@ -37,27 +59,228 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of BackupPointer
+            description: BackupPointerSpec selects backups to publish and controls
+              pointer freshness.
             properties:
-              foo:
-                description: foo is an example field of BackupPointer. Edit backuppointer_types.go
-                  to remove/update
+              source:
+                description: Source cannot change after creation because it defines
+                  the backup lineage.
+                properties:
+                  pxcCluster:
+                    type: string
+                  selector:
+                    description: Selector further restricts backups by their labels.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  storageNames:
+                    description: StorageNames permits any storage when the set is
+                      empty.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-list-type: set
+                required:
+                - pxcCluster
+                type: object
+                x-kubernetes-validations:
+                - message: source is immutable
+                  rule: self == oldSelf
+              staleAfter:
+                default: 36h
+                description: StaleAfter measures freshness from the selected backup's
+                  completion time.
                 type: string
+              suspend:
+                description: Suspend pauses pointer reconciliation.
+                type: boolean
+              target:
+                description: Target identifies where the selected backup's pointer
+                  is published.
+                properties:
+                  key:
+                    pattern: ^[A-Za-z0-9._/-]{1,512}$
+                    type: string
+                  objectStorage:
+                    description: ObjectStorageSpec configures access to one S3-compatible
+                      bucket.
+                    properties:
+                      bucket:
+                        description: Bucket names the bucket containing backups or
+                          pointer objects.
+                        pattern: ^[a-z0-9.-]{3,63}$
+                        type: string
+                      credentialsSecretRef:
+                        description: CredentialsSecretRef refers to a Secret in the
+                          resource's namespace.
+                        properties:
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      endpointURL:
+                        description: EndpointURL overrides the endpoint from the credentials
+                          Secret.
+                        type: string
+                      keys:
+                        description: Keys remaps the default credentials and endpoint
+                          keys.
+                        properties:
+                          accessKeyID:
+                            default: AWS_ACCESS_KEY_ID
+                            type: string
+                          endpointURL:
+                            default: S3_ENDPOINT_URL
+                            type: string
+                          publicEndpointURL:
+                            default: S3_PUBLIC_ENDPOINT_URL
+                            type: string
+                          secretAccessKey:
+                            default: AWS_SECRET_ACCESS_KEY
+                            type: string
+                        type: object
+                      pathStyle:
+                        description: PathStyle leaves addressing-style selection automatic
+                          when unset.
+                        type: boolean
+                      prefix:
+                        description: Prefix scopes object keys within the bucket.
+                        type: string
+                        x-kubernetes-validations:
+                        - message: prefix must not start with /
+                          rule: '!self.startsWith(''/'')'
+                      region:
+                        default: auto
+                        description: Region supplies the S3 signing region.
+                        type: string
+                      tls:
+                        description: TLS customizes certificate verification for this
+                          endpoint.
+                        properties:
+                          caSecretRef:
+                            description: SecretKeySelector selects a key of a Secret.
+                            properties:
+                              key:
+                                description: The key of the secret to select from.  Must
+                                  be a valid secret key.
+                                type: string
+                              name:
+                                default: ""
+                                description: |-
+                                  Name of the referent.
+                                  This field is effectively required, but due to backwards compatibility is
+                                  allowed to be empty. Instances of this type with an empty value here are
+                                  almost certainly wrong.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                type: string
+                              optional:
+                                description: Specify whether the Secret or its key
+                                  must be defined
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          insecureSkipVerify:
+                            default: false
+                            type: boolean
+                        type: object
+                    required:
+                    - bucket
+                    type: object
+                    x-kubernetes-validations:
+                    - message: endpointURL or a credentials Secret carrying S3_ENDPOINT_URL
+                        is required
+                      rule: has(self.endpointURL) || has(self.credentialsSecretRef)
+                  publicURL:
+                    description: PublicURL is informational and is embedded in the
+                      published pointer.
+                    type: string
+                required:
+                - key
+                - objectStorage
+                type: object
+              verifyInterval:
+                default: 1h
+                description: VerifyInterval controls checks for a missing or changed
+                  pointer object.
+                type: string
+            required:
+            - source
+            - target
             type: object
           status:
-            description: status defines the observed state of BackupPointer
+            description: BackupPointerStatus records publication history and the current
+              health conditions.
             properties:
+              backups:
+                description: BackupCounts exposes unsuccessful and unfinished backups
+                  alongside successful ones.
+                properties:
+                  failed:
+                    format: int32
+                    type: integer
+                  running:
+                    format: int32
+                    type: integer
+                  starting:
+                    format: int32
+                    type: integer
+                  succeeded:
+                    format: int32
+                    type: integer
+                type: object
               conditions:
-                description: |-
-                  conditions represent the current state of the BackupPointer resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: Conditions use BackupSelected, Published, Fresh, and
+                  Ready with positive polarity.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -116,6 +339,68 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              current:
+                description: PublishedBackup records the backup represented by a published
+                  pointer object.
+                properties:
+                  backupName:
+                    type: string
+                  completedAt:
+                    format: date-time
+                    type: string
+                  destination:
+                    type: string
+                  etag:
+                    type: string
+                  publishedAt:
+                    format: date-time
+                    type: string
+                  schemaVersion:
+                    format: int32
+                    type: integer
+                  storageName:
+                    type: string
+                type: object
+              nextVerifyTime:
+                format: date-time
+                type: string
+              observedGeneration:
+                format: int64
+                type: integer
+              phase:
+                description: BackupPointerPhase summarizes selection, publication,
+                  and freshness.
+                enum:
+                - Pending
+                - Published
+                - NoCandidate
+                - Stale
+                - Dangling
+                - Error
+                - Suspended
+                type: string
+              previous:
+                description: PublishedBackup records the backup represented by a published
+                  pointer object.
+                properties:
+                  backupName:
+                    type: string
+                  completedAt:
+                    format: date-time
+                    type: string
+                  destination:
+                    type: string
+                  etag:
+                    type: string
+                  publishedAt:
+                    format: date-time
+                    type: string
+                  schemaVersion:
+                    format: int32
+                    type: integer
+                  storageName:
+                    type: string
+                type: object
             type: object
         required:
         - spec

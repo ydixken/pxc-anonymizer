@@ -1,0 +1,32 @@
+image:
+  repository: ghcr.io/ydixken/pxc-anonymizer
+  # Empty uses Chart.appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+serviceAccount:
+  create: true
+  name: ""
+rbac:
+  create: true
+# This narrows the informer cache; permissions remain cluster-scoped.
+watchNamespaces: []
+replicaCount: 1
+leaderElection:
+  enabled: true
+crds:
+  install: true
+  keep: true
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+metrics:
+  enabled: true
+nodeSelector: {}
+tolerations: []
+affinity: {}

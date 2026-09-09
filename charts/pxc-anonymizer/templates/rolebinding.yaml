@@ -1,0 +1,16 @@
+{{- if and .Values.rbac.create .Values.leaderElection.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "pxc-anonymizer.fullname" . }}-leader-election
+  labels:
+    {{- include "pxc-anonymizer.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "pxc-anonymizer.fullname" . }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "pxc-anonymizer.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

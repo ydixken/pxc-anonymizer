@@ -1,0 +1,16 @@
+{{- if .Values.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pxc-anonymizer.fullname" . }}-metrics
+  labels:
+    {{- include "pxc-anonymizer.labels" . | nindent 4 }}
+spec:
+  ports:
+    - name: https-metrics
+      port: 8443
+      protocol: TCP
+      targetPort: https-metrics
+  selector:
+    {{- include "pxc-anonymizer.selectorLabels" . | nindent 4 }}
+{{- end }}

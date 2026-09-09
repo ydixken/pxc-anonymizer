@@ -54,7 +54,15 @@ var _ = Describe("BackupPointer Controller", func() {
 						Name:      resourceName,
 						Namespace: resourceNamespace,
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: pxcanonymizeriov1alpha1.BackupPointerSpec{
+						Source: pxcanonymizeriov1alpha1.BackupPointerSource{PXCCluster: "example-pxc"},
+						Target: pxcanonymizeriov1alpha1.PointerTarget{
+							ObjectStorage: pxcanonymizeriov1alpha1.ObjectStorageSpec{
+								Bucket: "example-backups", EndpointURL: admissionEndpoint,
+							},
+							Key: admissionPointerKey,
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

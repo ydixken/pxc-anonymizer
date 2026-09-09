@@ -1,0 +1,698 @@
+{{- if .Values.crds.install }}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+    {{- if .Values.crds.keep }}
+    helm.sh/resource-policy: keep
+    {{- end }}
+  name: bootstraps.pxc-anonymizer.io
+spec:
+  group: pxc-anonymizer.io
+  names:
+    kind: Bootstrap
+    listKind: BootstrapList
+    plural: bootstraps
+    shortNames:
+    - bs
+    singular: bootstrap
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.source.destination
+      name: Destination
+      type: string
+    - jsonPath: .status.targetsSummary
+      name: Targets
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Complete')].status
+      name: Complete
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Bootstrap restores a backup into existing PXC clusters in target
+          order.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: BootstrapSpec restores one immutable source into an ordered
+              set of clusters.
+            properties:
+              crossplane:
+                description: Crossplane is left untouched when this field is omitted.
+                properties:
+                  group:
+                    default: mysql.sql.crossplane.io
+                    type: string
+                  kinds:
+                    default:
+                    - databases
+                    - users
+                    - grants
+                    description: Kinds contains plural resource names.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-list-type: set
+                  pause:
+                    default: true
+                    type: boolean
+                  readinessTimeout:
+                    default: 15m
+                    description: ReadinessTimeout bounds waiting for both Ready and
+                      Synced on touched objects.
+                    type: string
+                  recreate:
+                    description: A nil Recreate preserves the managed resources.
+                    properties:
+                      kinds:
+                        default:
+                        - users
+                        - grants
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: set
+                      removeFinalizers:
+                        default: false
+                        type: boolean
+                      waitForRecreation:
+                        default: true
+                        type: boolean
+                    type: object
+                  resume:
+                    default: true
+                    type: boolean
+                  selector:
+                    description: A nil selector includes every object of the selected
+                      kinds in this namespace.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  version:
+                    default: v1alpha1
+                    type: string
+                type: object
+              pointer:
+                description: BootstrapSource selects one pointer transport or an inline
+                  backup destination.
+                properties:
+                  destination:
+                    pattern: ^s3://.+$
+                    type: string
+                  http:
+                    description: HTTPPointerSource configures a bounded HTTP request
+                      for a pointer.
+                    properties:
+                      allowInsecure:
+                        default: false
+                        type: boolean
+                      caSecretRef:
+                        description: SecretKeySelector selects a key of a Secret.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      maxBytes:
+                        default: 65536
+                        format: int64
+                        type: integer
+                      timeout:
+                        default: 30s
+                        type: string
+                      url:
+                        type: string
+                    required:
+                    - url
+                    type: object
+                    x-kubernetes-validations:
+                    - message: url must use https, or http with allowInsecure
+                      rule: self.url.startsWith('https://') || (has(self.allowInsecure)
+                        && self.allowInsecure && self.url.startsWith('http://'))
+                  maxAge:
+                    description: MaxAge checks pointer publishedAt; nil disables the
+                      age check.
+                    type: string
+                  s3:
+                    description: S3PointerSource identifies a pointer object read
+                      with S3 credentials.
+                    properties:
+                      key:
+                        pattern: ^[A-Za-z0-9._/-]{1,512}$
+                        type: string
+                      objectStorage:
+                        description: ObjectStorageSpec configures access to one S3-compatible
+                          bucket.
+                        properties:
+                          bucket:
+                            description: Bucket names the bucket containing backups
+                              or pointer objects.
+                            pattern: ^[a-z0-9.-]{3,63}$
+                            type: string
+                          credentialsSecretRef:
+                            description: CredentialsSecretRef refers to a Secret in
+                              the resource's namespace.
+                            properties:
+                              name:
+                                default: ""
+                                description: |-
+                                  Name of the referent.
+                                  This field is effectively required, but due to backwards compatibility is
+                                  allowed to be empty. Instances of this type with an empty value here are
+                                  almost certainly wrong.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                type: string
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          endpointURL:
+                            description: EndpointURL overrides the endpoint from the
+                              credentials Secret.
+                            type: string
+                          keys:
+                            description: Keys remaps the default credentials and endpoint
+                              keys.
+                            properties:
+                              accessKeyID:
+                                default: AWS_ACCESS_KEY_ID
+                                type: string
+                              endpointURL:
+                                default: S3_ENDPOINT_URL
+                                type: string
+                              publicEndpointURL:
+                                default: S3_PUBLIC_ENDPOINT_URL
+                                type: string
+                              secretAccessKey:
+                                default: AWS_SECRET_ACCESS_KEY
+                                type: string
+                            type: object
+                          pathStyle:
+                            description: PathStyle leaves addressing-style selection
+                              automatic when unset.
+                            type: boolean
+                          prefix:
+                            description: Prefix scopes object keys within the bucket.
+                            type: string
+                            x-kubernetes-validations:
+                            - message: prefix must not start with /
+                              rule: '!self.startsWith(''/'')'
+                          region:
+                            default: auto
+                            description: Region supplies the S3 signing region.
+                            type: string
+                          tls:
+                            description: TLS customizes certificate verification for
+                              this endpoint.
+                            properties:
+                              caSecretRef:
+                                description: SecretKeySelector selects a key of a
+                                  Secret.
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    default: ""
+                                    description: |-
+                                      Name of the referent.
+                                      This field is effectively required, but due to backwards compatibility is
+                                      allowed to be empty. Instances of this type with an empty value here are
+                                      almost certainly wrong.
+                                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              insecureSkipVerify:
+                                default: false
+                                type: boolean
+                            type: object
+                        required:
+                        - bucket
+                        type: object
+                        x-kubernetes-validations:
+                        - message: endpointURL or a credentials Secret carrying S3_ENDPOINT_URL
+                            is required
+                          rule: has(self.endpointURL) || has(self.credentialsSecretRef)
+                    required:
+                    - key
+                    - objectStorage
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: pointer is immutable
+                  rule: self == oldSelf
+                - message: set exactly one of http, s3 or destination
+                  rule: '(has(self.http) ? 1 : 0) + (has(self.s3) ? 1 : 0) + (has(self.destination)
+                    ? 1 : 0) == 1'
+              restore:
+                description: Restore supplies credentials for inline backupSource.s3
+                  restores.
+                properties:
+                  credentialsSecret:
+                    description: CredentialsSecret names a Secret in the resource's
+                      namespace with AWS credential keys.
+                    type: string
+                  endpointURL:
+                    description: EndpointURL falls back to the endpoint carried in
+                      the pointer when unset.
+                    type: string
+                  region:
+                    default: auto
+                    type: string
+                  verifyTLS:
+                    type: boolean
+                required:
+                - credentialsSecret
+                type: object
+              targets:
+                description: Targets are restored in list order; duplicate cluster
+                  identities are invalid.
+                items:
+                  description: BootstrapTarget configures one target cluster and optional
+                    restore overrides.
+                  properties:
+                    containerOptions:
+                      description: XtrabackupContainerOptions keeps backup and restore
+                        arguments independently configurable.
+                      properties:
+                        xbcloud:
+                          items:
+                            type: string
+                          type: array
+                        xbstream:
+                          items:
+                            type: string
+                          type: array
+                        xtrabackup:
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                    pxcCluster:
+                      minLength: 1
+                      type: string
+                    restore:
+                      description: Restore overrides the shared credentials for this
+                        target.
+                      properties:
+                        credentialsSecret:
+                          description: CredentialsSecret names a Secret in the resource's
+                            namespace with AWS credential keys.
+                          type: string
+                        endpointURL:
+                          description: EndpointURL falls back to the endpoint carried
+                            in the pointer when unset.
+                          type: string
+                        region:
+                          default: auto
+                          type: string
+                        verifyTLS:
+                          type: boolean
+                      required:
+                      - credentialsSecret
+                      type: object
+                  required:
+                  - pxcCluster
+                  type: object
+                minItems: 1
+                type: array
+                x-kubernetes-list-map-keys:
+                - pxcCluster
+                x-kubernetes-list-type: map
+              timeouts:
+                default: {}
+                description: BootstrapTimeouts bounds each stage; a zero clustersReady
+                  duration is unbounded.
+                properties:
+                  clustersReady:
+                    default: 0s
+                    type: string
+                  crossplane:
+                    default: 15m
+                    type: string
+                  pointer:
+                    default: 15m
+                    type: string
+                  restore:
+                    default: 3h
+                    description: Restore applies separately to each target.
+                    type: string
+                type: object
+              trigger:
+                description: Trigger re-arms a terminal Bootstrap when its value changes.
+                type: string
+            required:
+            - pointer
+            - restore
+            - targets
+            type: object
+          status:
+            description: BootstrapStatus records progress, touched resources and the
+              last five outcomes.
+            properties:
+              completedAt:
+                format: date-time
+                type: string
+              conditions:
+                description: |-
+                  Conditions include ClustersReady, PointerResolved, CrossplanePaused, Restored,
+                  CrossplaneResumed, CrossplaneRecreated, Complete and Failed.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              crossplane:
+                description: CrossplaneStatus records exactly which managed resources
+                  were touched or remain pending.
+                properties:
+                  paused:
+                    items:
+                      description: CrossplaneObjectReference identifies a managed
+                        resource in the Bootstrap namespace.
+                      properties:
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - kind
+                    - name
+                    x-kubernetes-list-type: map
+                  pending:
+                    items:
+                      description: CrossplaneObjectReference identifies a managed
+                        resource in the Bootstrap namespace.
+                      properties:
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - kind
+                    - name
+                    x-kubernetes-list-type: map
+                  recreated:
+                    items:
+                      description: CrossplaneObjectReference identifies a managed
+                        resource in the Bootstrap namespace.
+                      properties:
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - kind
+                    - name
+                    x-kubernetes-list-type: map
+                  resumed:
+                    items:
+                      description: CrossplaneObjectReference identifies a managed
+                        resource in the Bootstrap namespace.
+                      properties:
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - kind
+                    - name
+                    x-kubernetes-list-type: map
+                type: object
+              history:
+                items:
+                  description: BootstrapRunRecord retains the outcome of one completed
+                    trigger.
+                  properties:
+                    completedAt:
+                      format: date-time
+                      type: string
+                    destination:
+                      type: string
+                    outcome:
+                      description: BootstrapPhase identifies the current stage of
+                        a bootstrap operation.
+                      enum:
+                      - Pending
+                      - WaitingForClusters
+                      - ResolvingPointer
+                      - PausingCrossplane
+                      - Restoring
+                      - ResumingCrossplane
+                      - RecreatingCrossplane
+                      - Completed
+                      - Failed
+                      type: string
+                    startedAt:
+                      format: date-time
+                      type: string
+                    trigger:
+                      type: string
+                  type: object
+                maxItems: 5
+                type: array
+              observedGeneration:
+                format: int64
+                type: integer
+              observedTrigger:
+                type: string
+              phase:
+                description: BootstrapPhase identifies the current stage of a bootstrap
+                  operation.
+                enum:
+                - Pending
+                - WaitingForClusters
+                - ResolvingPointer
+                - PausingCrossplane
+                - Restoring
+                - ResumingCrossplane
+                - RecreatingCrossplane
+                - Completed
+                - Failed
+                type: string
+              source:
+                description: ResolvedSource records the source selected from a literal,
+                  backup, or pointer.
+                properties:
+                  backupName:
+                    type: string
+                  destination:
+                    type: string
+                  pointerPublishedAt:
+                    format: date-time
+                    type: string
+                  pointerSchemaVersion:
+                    description: PointerSchemaVersion distinguishes legacy pointers
+                      without a publication timestamp.
+                    format: int32
+                    type: integer
+                  sourceCluster:
+                    type: string
+                type: object
+              startedAt:
+                format: date-time
+                type: string
+              targets:
+                items:
+                  description: BootstrapTargetStatus records the restore state of
+                    one target cluster.
+                  properties:
+                    completedAt:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    pxcCluster:
+                      type: string
+                    restoreName:
+                      type: string
+                    startedAt:
+                      format: date-time
+                      type: string
+                    state:
+                      description: State mirrors the PXC restore state without importing
+                        its Go API.
+                      type: string
+                  required:
+                  - pxcCluster
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - pxcCluster
+                x-kubernetes-list-type: map
+              targetsSummary:
+                description: TargetsSummary contains the completed/total count used
+                  by the printer column.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+{{- end }}

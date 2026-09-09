@@ -54,7 +54,9 @@ var _ = Describe("AnonymizationPolicy Controller", func() {
 						Name:      resourceName,
 						Namespace: resourceNamespace,
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: pxcanonymizeriov1alpha1.AnonymizationPolicySpec{
+						Databases: []pxcanonymizeriov1alpha1.DatabasePolicy{{Name: "example"}},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

@@ -11,14 +11,16 @@ spec:
     kind: AnonymizationPolicy
     listKind: AnonymizationPolicyList
     plural: anonymizationpolicies
+    shortNames:
+    - apol
     singular: anonymizationpolicy
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: AnonymizationPolicy is the Schema for the anonymizationpolicies
-          API
+        description: AnonymizationPolicy defines reusable transformations without
+          embedding SQL bodies.
         properties:
           apiVersion:
             description: |-
@@ -40,25 +42,451 @@ spec:
           spec:
             description: spec defines the desired state of AnonymizationPolicy
             properties:
-              foo:
-                description: foo is an example field of AnonymizationPolicy. Edit
-                  anonymizationpolicy_types.go to remove/update
-                type: string
+              databases:
+                description: Pattern-only entries have no name to use as a required
+                  map key.
+                items:
+                  description: DatabasePolicy can match an exact database or an anchored
+                    RE2 expression.
+                  properties:
+                    name:
+                      pattern: ^[A-Za-z0-9_$]{1,64}$
+                      type: string
+                    namePattern:
+                      description: Pattern compilation belongs to policy validation,
+                        before a Run starts.
+                      type: string
+                    optional:
+                      description: Missing databases or zero pattern matches fail
+                        unless this is true.
+                      type: boolean
+                    post:
+                      items:
+                        description: StepRef preserves the declared execution order
+                          of reusable SQL steps.
+                        properties:
+                          name:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
+                    pre:
+                      items:
+                        description: StepRef preserves the declared execution order
+                          of reusable SQL steps.
+                        properties:
+                          name:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
+                    tables:
+                      items:
+                        description: TablePolicy allows a table to be truncated without
+                          carrying column rules.
+                        properties:
+                          action:
+                            default: Anonymize
+                            description: TableAction separates row transformations
+                              from whole-table removal.
+                            enum:
+                            - Anonymize
+                            - Truncate
+                            type: string
+                          columns:
+                            items:
+                              description: ColumnRule leaves unspecified behavior
+                                to policy and strategy defaults.
+                              properties:
+                                consistent:
+                                  description: A true override makes equal inputs
+                                    share outputs across tables within the Run.
+                                  type: boolean
+                                name:
+                                  type: string
+                                onEmpty:
+                                  description: ValueHandling preserves null or empty
+                                    inputs unless generation is requested.
+                                  enum:
+                                  - Keep
+                                  - Generate
+                                  type: string
+                                onNull:
+                                  description: ValueHandling preserves null or empty
+                                    inputs unless generation is requested.
+                                  enum:
+                                  - Keep
+                                  - Generate
+                                  type: string
+                                params:
+                                  description: StrategyParams keeps optional values
+                                    distinguishable from explicit zero or empty values.
+                                  properties:
+                                    ascii:
+                                      default: true
+                                      type: boolean
+                                    case:
+                                      enum:
+                                      - Mixed
+                                      - Upper
+                                      - Lower
+                                      type: string
+                                    country:
+                                      default: DE
+                                      type: string
+                                    digits:
+                                      default: 15
+                                      description: Digits limits phone numbers to
+                                        their supported maximum length.
+                                      format: int32
+                                      maximum: 15
+                                      type: integer
+                                    domain:
+                                      description: Domain falls back to the policy
+                                        default, then the email generator.
+                                      type: string
+                                    encoding:
+                                      enum:
+                                      - hex
+                                      - base64
+                                      type: string
+                                    format:
+                                      enum:
+                                      - date
+                                      - datetime
+                                      type: string
+                                    from:
+                                      default: "1950-01-01"
+                                      type: string
+                                    keepPrefix:
+                                      format: int32
+                                      type: integer
+                                    keepSuffix:
+                                      format: int32
+                                      type: integer
+                                    length:
+                                      description: Hash uses 64 when omitted; alphanumeric
+                                        and digits require an explicit value.
+                                      format: int32
+                                      type: integer
+                                    locale:
+                                      description: Locale falls back to the policy
+                                        default.
+                                      type: string
+                                    maskChar:
+                                      type: string
+                                    max:
+                                      format: int64
+                                      type: integer
+                                    maxLength:
+                                      format: int32
+                                      type: integer
+                                    min:
+                                      format: int64
+                                      type: integer
+                                    sentences:
+                                      format: int32
+                                      type: integer
+                                    to:
+                                      description: The date generator evaluates an
+                                        omitted upper bound as today at execution
+                                        time.
+                                      type: string
+                                    unique:
+                                      description: Unique requests collision retries
+                                        for the digits strategy.
+                                      type: boolean
+                                    value:
+                                      description: A pointer preserves an intentionally
+                                        empty constant.
+                                      type: string
+                                    valueFrom:
+                                      description: ValueFrom keeps sensitive constants
+                                        in a Secret in the policy's namespace.
+                                      properties:
+                                        key:
+                                          description: The key of the secret to select
+                                            from.  Must be a valid secret key.
+                                          type: string
+                                        name:
+                                          default: ""
+                                          description: |-
+                                            Name of the referent.
+                                            This field is effectively required, but due to backwards compatibility is
+                                            allowed to be empty. Instances of this type with an empty value here are
+                                            almost certainly wrong.
+                                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                          type: string
+                                        optional:
+                                          description: Specify whether the Secret
+                                            or its key must be defined
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                  type: object
+                                strategy:
+                                  description: Strategy rejects misspelled transformations
+                                    before a Run starts.
+                                  enum:
+                                  - firstName
+                                  - lastName
+                                  - fullName
+                                  - jobTitle
+                                  - email
+                                  - phone
+                                  - date
+                                  - address
+                                  - streetAddress
+                                  - streetSuffix
+                                  - city
+                                  - postalCode
+                                  - state
+                                  - country
+                                  - company
+                                  - companySuffix
+                                  - vatId
+                                  - iban
+                                  - ipv4Public
+                                  - url
+                                  - uuid
+                                  - alphanumeric
+                                  - digits
+                                  - number
+                                  - text
+                                  - constant
+                                  - hash
+                                  - mask
+                                  - "null"
+                                  type: string
+                              required:
+                              - name
+                              - strategy
+                              type: object
+                              x-kubernetes-validations:
+                              - message: alphanumeric and digits require params.length
+                                rule: 'self.strategy in [''alphanumeric'',''digits'']
+                                  ? (has(self.params) && has(self.params.length))
+                                  : true'
+                              - message: constant requires params.value or params.valueFrom
+                                rule: 'self.strategy == ''constant'' ? (has(self.params)
+                                  && (has(self.params.value) || has(self.params.valueFrom)))
+                                  : true'
+                              - message: null, mask and constant do not accept consistent
+                                rule: 'self.strategy in [''null'',''mask'',''constant'']
+                                  ? !has(self.consistent) : true'
+                              - message: params.length must not exceed 4096
+                                rule: '!has(self.params) || !has(self.params.length)
+                                  || self.params.length <= 4096'
+                            type: array
+                            x-kubernetes-list-map-keys:
+                            - name
+                            x-kubernetes-list-type: map
+                          ignore:
+                            description: IgnoreSpec excludes matching rows from a
+                              table's transformation.
+                            properties:
+                              where:
+                                description: Supply a WHERE expression without the
+                                  keyword or a statement delimiter.
+                                maxLength: 4096
+                                pattern: ^[^;]*$
+                                type: string
+                            required:
+                            - where
+                            type: object
+                          name:
+                            type: string
+                          optional:
+                            type: boolean
+                          pageSize:
+                            format: int32
+                            maximum: 50000
+                            type: integer
+                          primaryKey:
+                            description: Omission selects the table's primary key;
+                              an override permits a unique index instead.
+                            items:
+                              type: string
+                            type: array
+                        required:
+                        - name
+                        type: object
+                        x-kubernetes-validations:
+                        - message: Truncate takes no columns
+                          rule: self.action != 'Truncate' || !has(self.columns)
+                        - message: Anonymize needs at least one column
+                          rule: self.action != 'Anonymize' || (has(self.columns) &&
+                            size(self.columns) > 0)
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - name
+                      x-kubernetes-list-type: map
+                  type: object
+                  x-kubernetes-validations:
+                  - message: set exactly one of name or namePattern
+                    rule: '(has(self.name) ? 1 : 0) + (has(self.namePattern) ? 1 :
+                      0) == 1'
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: atomic
+              defaults:
+                default: {}
+                description: PolicyDefaults supplies values inherited by tables and
+                  columns when they omit an override.
+                properties:
+                  emailDomain:
+                    description: An omitted domain lets the generator select one.
+                    type: string
+                  locale:
+                    default: en
+                    type: string
+                  onEmpty:
+                    default: Keep
+                    description: ValueHandling preserves null or empty inputs unless
+                      generation is requested.
+                    enum:
+                    - Keep
+                    - Generate
+                    type: string
+                  onNull:
+                    default: Keep
+                    description: ValueHandling preserves null or empty inputs unless
+                      generation is requested.
+                    enum:
+                    - Keep
+                    - Generate
+                    type: string
+                  pageSize:
+                    default: 5000
+                    format: int32
+                    maximum: 50000
+                    type: integer
+                type: object
+              determinism:
+                default: {}
+                description: DeterminismSpec defaults to unlinkable identities between
+                  Runs.
+                properties:
+                  mode:
+                    default: PerRun
+                    description: Fixed mode reuses the referenced seed for stable
+                      identities across refreshes.
+                    enum:
+                    - PerRun
+                    - Fixed
+                    type: string
+                  seedSecretRef:
+                    description: SecretKeySelector selects a key of a Secret.
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
+                x-kubernetes-validations:
+                - message: Fixed determinism requires seedSecretRef
+                  rule: '!has(self.mode) || self.mode != ''Fixed'' || has(self.seedSecretRef)'
+              steps:
+                description: SQL stays in referenced objects so credentials never
+                  need to be embedded in this policy.
+                items:
+                  description: SQLStep uses references so sensitive SQL can be carried
+                    by a Secret.
+                  properties:
+                    configMapKeyRef:
+                      description: Selects a key from a ConfigMap.
+                      properties:
+                        key:
+                          description: The key to select.
+                          type: string
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                        optional:
+                          description: Specify whether the ConfigMap or its key must
+                            be defined
+                          type: boolean
+                      required:
+                      - key
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    continueOnError:
+                      description: Failures stop the Run unless continuing was explicitly
+                        requested.
+                      type: boolean
+                    name:
+                      pattern: ^[a-z0-9-]{1,63}$
+                      type: string
+                    secretKeyRef:
+                      description: SecretKeySelector selects a key of a Secret.
+                      properties:
+                        key:
+                          description: The key of the secret to select from.  Must
+                            be a valid secret key.
+                          type: string
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                        optional:
+                          description: Specify whether the Secret or its key must
+                            be defined
+                          type: boolean
+                      required:
+                      - key
+                      type: object
+                      x-kubernetes-map-type: atomic
+                  required:
+                  - name
+                  type: object
+                  x-kubernetes-validations:
+                  - message: set exactly one of configMapKeyRef or secretKeyRef
+                    rule: '(has(self.configMapKeyRef) ? 1 : 0) + (has(self.secretKeyRef)
+                      ? 1 : 0) == 1'
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+            required:
+            - databases
             type: object
           status:
             description: status defines the observed state of AnonymizationPolicy
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the AnonymizationPolicy resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: Valid reports SpecValid, StepRefMissing or PatternInvalid.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -117,6 +545,10 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              hash:
+                description: Hash is the SHA-256 of canonical policy JSON, also recorded
+                  on Runs.
+                type: string
             type: object
         required:
         - spec

@@ -19,16 +19,21 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -36,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	pxcanonymizeriov1alpha1 "github.com/ydixken/pxc-anonymizer/api/v1alpha1"
+	"github.com/ydixken/pxc-anonymizer/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -60,6 +66,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var watchNamespaces string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -78,6 +85,8 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&watchNamespaces, "watch-namespaces", "",
+		"Comma-separated namespaces to watch; empty watches all namespaces.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -85,6 +94,11 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	watchCache, err := namespaceCache(watchNamespaces)
+	if err != nil {
+		setupLog.Error(err, "Invalid watch namespaces")
+		os.Exit(1)
+	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -155,6 +169,7 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
+		Cache:                  watchCache,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
@@ -177,6 +192,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	if _, err := mgr.GetRESTMapper().RESTMapping(schema.GroupKind{
+		Group: "pxc.percona.com", Kind: "PerconaXtraDBClusterBackup",
+	}, "v1"); err != nil {
+		setupLog.Error(err, "Required PXC backup API is unavailable")
+		os.Exit(1)
+	}
+	if err := (&controller.BackupPointerReconciler{
+		Client: mgr.GetClient(), Scheme: mgr.GetScheme(), APIReader: mgr.GetAPIReader(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to register BackupPointer controller")
+		os.Exit(1)
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -193,4 +221,20 @@ func main() {
 		setupLog.Error(err, "Failed to run manager")
 		os.Exit(1)
 	}
+}
+
+func namespaceCache(namespaces string) (cache.Options, error) {
+	options := cache.Options{}
+	if namespaces == "" {
+		return options, nil
+	}
+	options.DefaultNamespaces = map[string]cache.Config{}
+	for name := range strings.SplitSeq(namespaces, ",") {
+		name = strings.TrimSpace(name)
+		if errors := validation.IsDNS1123Label(name); len(errors) != 0 {
+			return cache.Options{}, fmt.Errorf("invalid namespace %q: %s", name, strings.Join(errors, "; "))
+		}
+		options.DefaultNamespaces[name] = cache.Config{}
+	}
+	return options, nil
 }

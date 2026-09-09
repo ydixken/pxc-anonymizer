@@ -5,40 +5,32 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+- apiGroups:
   - pxc-anonymizer.io
   resources:
-  - anonymizationpolicies
-  - anonymizationruns
-  - anonymizationschedules
   - backuppointers
-  - bootstraps
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - pxc-anonymizer.io
   resources:
-  - anonymizationpolicies/finalizers
-  - anonymizationruns/finalizers
-  - anonymizationschedules/finalizers
-  - backuppointers/finalizers
-  - bootstraps/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - pxc-anonymizer.io
-  resources:
-  - anonymizationpolicies/status
-  - anonymizationruns/status
-  - anonymizationschedules/status
   - backuppointers/status
-  - bootstraps/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - pxc.percona.com
+  resources:
+  - perconaxtradbclusterbackups
+  verbs:
+  - get
+  - list
+  - watch

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: pxc-anonymizer
+description: Backup pointer publisher and anonymization API contracts for Percona XtraDB Cluster.
+type: application
+version: 0.1.0-alpha.1
+appVersion: "v0.1.0-alpha.1"
+home: https://github.com/ydixken/pxc-anonymizer
+sources:
+  - https://github.com/ydixken/pxc-anonymizer
