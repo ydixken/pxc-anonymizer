@@ -51,7 +51,7 @@ jobs:
           ./actionlint -version | grep -Fx v1.7.7
           test "$(./kubeconform -v)" = v0.8.0
           echo "$tools_dir" >> "$GITHUB_PATH"
-      - uses: hadolint/hadolint-action@v3
+      - uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf  # v3.1.0
         with:
           dockerfile: Dockerfile
       - run: task lint
@@ -97,7 +97,7 @@ jobs:
             --env MINIO_ROOT_USER="$PXC_ANONYMIZER_TEST_S3_ACCESS_KEY_ID" \
             --env MINIO_ROOT_PASSWORD="$PXC_ANONYMIZER_TEST_S3_SECRET_ACCESS_KEY" \
             minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
-          curl --fail --silent --show-error --retry 30 --retry-connrefused \
+          curl --fail --silent --show-error --retry 30 --retry-all-errors \
             --retry-delay 1 --retry-max-time 120 --max-time 5 \
             "$PXC_ANONYMIZER_TEST_S3_ENDPOINT/minio/health/ready"
           docker exec pxc-ci-minio sh -ec '
