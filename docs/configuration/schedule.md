@@ -46,7 +46,7 @@ spec:
             name: output-credentials
 ```
 
-Use the [admission-only procedure](../reference/api.md#admission-only-examples) to validate it.
+Use the [admission-only procedure](../installation.md#validate-a-manifest) to validate it.
 The explicit suspension keeps the example inactive until its references are prepared and you enable it.
 
 ## Spec

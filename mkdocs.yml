@@ -1,0 +1,56 @@
+site_name: pxc-anonymizer
+site_url: https://ydixken.github.io/pxc-anonymizer/
+repo_url: https://github.com/ydixken/pxc-anonymizer
+edit_uri: edit/main/docs/
+docs_dir: docs
+# Keep generated site files under the existing ignored build directory.
+site_dir: bin/docs-site
+
+exclude_docs: |
+  research/
+  superpowers/
+
+theme:
+  name: material
+  font: false
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+    - toc.follow
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Installation: installation.md
+  - Configuration:
+      - BackupPointer: configuration/backuppointer.md
+      - AnonymizationPolicy: configuration/policy.md
+      - AnonymizationRun: configuration/run.md
+      - AnonymizationSchedule: configuration/schedule.md
+      - Bootstrap: configuration/bootstrap.md
+      - Demo seed: configuration/seed-demo.md
+  - Examples: examples.md
+  - Operations:
+      - Pointer contract: operations/pointer.md
+  - Reference:
+      - Prerequisites: reference/prerequisites.md
+      - API: reference/api.md
+      - Conditions and reasons: reference/conditions.md

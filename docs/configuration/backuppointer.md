@@ -1,12 +1,14 @@
 # BackupPointer
 
-`BackupPointer` publishes a JSON pointer to the latest successful Percona XtraDB Cluster backup in its namespace.
-It selects existing backups; it does not create backups or anonymize their contents.
+`BackupPointer` publishes a JSON reference to the latest successful Percona XtraDB Cluster backup in its namespace.
+It selects existing backups without creating backups, copying their data or anonymizing their contents.
 
-## Example
+## Before creating a pointer
 
-The [quickstart](../quickstart.md) creates this resource after checking the development context and supplying a credential Secret through your secret-management system.
-The example names are illustrative.
+Follow the [quickstart](../quickstart.md) and supply the [storage prerequisites](../reference/prerequisites.md).
+The source cluster and its backup resources must share the BackupPointer namespace.
+The pointer bucket must already exist, and its credentials must permit reading and writing the configured object key.
+The backup data can reside in a different bucket.
 
 ```yaml
 apiVersion: pxc-anonymizer.io/v1alpha1
@@ -29,63 +31,40 @@ spec:
   verifyInterval: 1h
 ```
 
-The Secret must contain the S3 access key, secret key and endpoint under the [shared object-storage keys](../reference/api.md#object-storage), unless those keys are remapped.
-The bucket must exist and permit this identity to read and write the pointer object.
-The selected backup's data can reside in a different bucket from the pointer.
-
-## Spec
-
-| Field | Contract |
-| --- | --- |
-| `source` | Required and immutable after creation. |
-| `source.pxcCluster` | Required PXC cluster name in the same namespace. |
-| `source.storageNames` | Optional set of Percona storage names; empty means any storage. |
-| `source.selector` | Optional Kubernetes label selector for backup resources. |
-| `target` | Required [PointerTarget](../reference/api.md#pointer-targets-and-sources). |
-| `staleAfter` | Defaults to `36h`; freshness is measured from backup completion. |
-| `verifyInterval` | Defaults to `1h`; interval for checking the published object. |
-| `suspend` | Optional boolean; pauses reconciliation. |
-
-Changing the source requires a new BackupPointer.
-The target and timing fields remain mutable.
+Use the [generated API reference](../reference/api.md) for field definitions and defaults.
+The source is immutable; changing it requires a new BackupPointer.
+The target, timing settings and suspension remain mutable.
+Credential and CA references resolve in the resource namespace, with the pointer-specific key remapping described in [prerequisites](../reference/prerequisites.md#credentials).
 
 ## Selection and publication
 
-The controller filters backups by namespace, cluster, storage names and labels.
-It chooses the latest `Succeeded` backup with an S3 destination, using completion time and falling back to creation time when completion is absent.
-Newer Running or Starting backups do not block an already successful backup from being selected.
+Selection filters by namespace, source cluster, storage names and labels.
+An empty storage-name list permits any storage.
+The controller chooses a `Succeeded` S3 backup with a completion timestamp.
+Successful backups without that timestamp are excluded; creation time is not a fallback.
+A newer Running, Starting or failed backup does not block publication of an older successful backup.
+The selection condition reports `NewerBackupInProgress` or `NewerBackupFailed` while remaining True.
 
-The pointer is written as JSON with `Content-Type: application/json`.
-Its v2 contract preserves the legacy `name` and `destination` fields and adds publication metadata, including `schemaVersion: 2`.
-The [pointer target](../reference/api.md#pointer-targets-and-sources) determines where the JSON is stored.
-It does not move or copy the backup data.
+Publication writes [schema-v2 JSON](../operations/pointer.md) with `Content-Type: application/json` and `Cache-Control: no-cache`.
+At the verification interval, HEAD compares the object's ETag with the recorded publication.
+A missing object or changed ETag causes another upload.
+An upload records a new `publishedAt`; verification alone does not advance it.
 
-If the selected backup disappears and no replacement qualifies, the controller reports the dangling pointer and leaves the object in storage.
-Likewise, absence of a successful candidate does not delete an existing pointer.
-Consumers must check pointer status and backup retention according to their needs.
+If the selected backup disappears and no replacement qualifies, the controller marks the pointer dangling and leaves the stored object untouched.
+No successful candidate, suspension and resource deletion also leave the stored pointer in place.
+An available JSON document therefore does not prove that its backup still exists.
 
-## Status and conditions
+## Readiness and freshness
 
-`status.observedGeneration` identifies the spec generation processed by the controller.
-`status.phase` is one of `Pending`, `Published`, `NoCandidate`, `Stale`, `Dangling`, `Error` or `Suspended`.
+`Ready=True` means the selected successful backup is published.
+`Fresh` separately compares its backup completion time with `staleAfter`, which defaults to `36h`.
+A pointer can be Ready while Fresh is False.
+`Published=True` can remain from an earlier publication while Ready is False, so check the complete condition set and its generations.
 
-| Field | Meaning |
-| --- | --- |
-| `current` | [PublishedBackup](../reference/api.md#shared-status-shapes) represented by the pointer. |
-| `previous` | Previous published backup record, when present. |
-| `backups.succeeded` | Number of matching successful backups. |
-| `backups.failed` | Number of matching failed backups. |
-| `backups.running` | Number of matching running backups. |
-| `backups.starting` | Number of matching starting backups. |
-| `nextVerifyTime` | Next scheduled object verification. |
+The [conditions reference](../reference/conditions.md#backuppointer) lists all reasons and a generation-aware wait procedure.
+The [pointer contract](../operations/pointer.md) explains consumer behavior, publication age and legacy JSON compatibility.
 
-The condition types are `BackupSelected`, `Published`, `Fresh` and `Ready`.
-`Ready` indicates successful selection and publication; `Fresh` independently checks the selected backup's age.
-A pointer can therefore be Ready while Fresh is False.
-Inspect the condition `reason` and `message` when a check fails.
-The resource has short name `bp` and prints Cluster, Backup, Published, Ready, Fresh and Age columns.
-
-1. Inspect a pointer after completing the quickstart's context selection.
+1. Inspect the pointer in the development context confirmed during installation.
 
    ```sh
    : "${DEV_CONTEXT:?Set DEV_CONTEXT to the development context you confirmed}"

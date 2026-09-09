@@ -42,6 +42,7 @@ Dockerfile            # Manager image build
 
    ```sh
    make build
+   bin/manager manager --help
    ```
 
 For a development-cluster installation, follow the [Installation guide](docs/installation.md), then the [BackupPointer quickstart](docs/quickstart.md).
@@ -54,12 +55,10 @@ The installation guide makes you select and inspect the target context before ch
 | `task help` | List available tasks. |
 | `task lint` | Check secrecy, YAML, Go, chart consistency and workflows. |
 | `task test` | Run Go, admission and build configuration tests. |
+| `task docs` | Generate the API reference and build the documentation. |
 | `make build` | Generate code and compile `bin/manager`. |
 
-Local verification requires Task v3, yamllint, Python 3, Helm, actionlint and kubeconform in addition to the Go build tools.
-Local lint requires the maintainers' ignored `tasks/secrecy-deny.regex` file.
-Keep this private policy out of version control.
-E2E is a small milestone check, separate from routine lint and tests.
+See [Contributing](CONTRIBUTING.md) for local tool requirements and verification.
 
 ## Installation
 
@@ -77,9 +76,17 @@ See the [seed-demo guide](docs/configuration/seed-demo.md).
 
 See the [API reference](docs/reference/api.md).
 
+## Examples
+
+See the [examples index](docs/examples.md).
+
+## Operations
+
+See the [pointer contract](docs/operations/pointer.md) and [conditions reference](docs/reference/conditions.md).
+
 ## Contributing
 
-See the [contributor and agent guidance](AGENTS.md).
+See the [contribution guide](CONTRIBUTING.md).
 
 ## License
 

@@ -30,7 +30,7 @@ spec:
               strategy: "null"
 ```
 
-Use the [admission-only procedure](../reference/api.md#admission-only-examples) to validate it.
+Use the [admission-only procedure](../installation.md#validate-a-manifest) to validate it.
 
 ## Policy fields
 
