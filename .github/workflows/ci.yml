@@ -36,21 +36,8 @@ jobs:
         run: |
           pipx install yamllint
           go install github.com/go-task/task/v3/cmd/task@v3.53.1
-          tools_dir=$(mktemp -d)
-          cd "$tools_dir"
-          actionlint_url=https://github.com/rhysd/actionlint/releases/download/v1.7.7
-          curl -fsSLO "$actionlint_url/actionlint_1.7.7_linux_amd64.tar.gz"
-          curl -fsSLO "$actionlint_url/actionlint_1.7.7_checksums.txt"
-          grep ' actionlint_1.7.7_linux_amd64.tar.gz$' actionlint_1.7.7_checksums.txt | sha256sum --check
-          tar -xzf actionlint_1.7.7_linux_amd64.tar.gz actionlint
-          kubeconform_url=https://github.com/yannh/kubeconform/releases/download/v0.8.0
-          curl -fsSLO "$kubeconform_url/kubeconform-linux-amd64.tar.gz"
-          curl -fsSLO "$kubeconform_url/CHECKSUMS"
-          grep ' kubeconform-linux-amd64.tar.gz$' CHECKSUMS | sha256sum --check
-          tar -xzf kubeconform-linux-amd64.tar.gz kubeconform
-          ./actionlint -version | grep -Fx v1.7.7
-          test "$(./kubeconform -v)" = v0.8.0
-          echo "$tools_dir" >> "$GITHUB_PATH"
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.8.0
       - uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf  # v3.1.0
         with:
           dockerfile: Dockerfile
