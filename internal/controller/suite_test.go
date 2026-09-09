@@ -26,6 +26,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	pxcanonymizeriov1alpha1 "github.com/ydixken/pxc-anonymizer/api/v1alpha1"
+	"github.com/ydixken/pxc-anonymizer/internal/pxc"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -118,4 +121,39 @@ func getFirstFoundEnvTestBinaryDir() string {
 		}
 	}
 	return ""
+}
+
+const perconaCompletedField = "completed"
+
+func fakePerconaBackup(namespace, name, cluster, storage string) *unstructured.Unstructured {
+	GinkgoHelper()
+	backup := &unstructured.Unstructured{Object: map[string]any{
+		admissionSpecField: map[string]any{admissionClusterField: cluster, "storageName": storage},
+	}}
+	backup.SetGroupVersionKind(pxc.BackupGVK)
+	backup.SetNamespace(namespace)
+	backup.SetName(name)
+	backup.SetLabels(map[string]string{reconcileLabelKey: reconcileLabel})
+	Expect(k8sClient.Create(ctx, backup)).To(Succeed())
+	return backup
+}
+
+func markBackupSucceeded(backup *unstructured.Unstructured, destination string, completed time.Time) {
+	GinkgoHelper()
+	markBackupState(backup, map[string]any{
+		runTestStateField: string(pxc.BackupSucceeded), admissionDestinationField: destination,
+		perconaCompletedField: metav1.NewTime(completed).Format(time.RFC3339),
+	})
+}
+
+func markBackupFailed(backup *unstructured.Unstructured, message string) {
+	GinkgoHelper()
+	markBackupState(backup, map[string]any{runTestStateField: string(pxc.BackupFailed), "error": message})
+}
+
+func markBackupState(backup *unstructured.Unstructured, status map[string]any) {
+	GinkgoHelper()
+	Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(backup), backup)).To(Succeed())
+	backup.Object[runTestStatusField] = status
+	Expect(k8sClient.Status().Update(ctx, backup)).To(Succeed())
 }
