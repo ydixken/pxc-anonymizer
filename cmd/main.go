@@ -59,8 +59,19 @@ func init() {
 
 // nolint:gocyclo
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "anonymize" {
-		os.Exit(runAnonymize(ctrl.SetupSignalHandler(), os.Args[2:], os.Stdout, os.Stderr))
+	args := os.Args[1:]
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		switch args[0] {
+		case "anonymize":
+			os.Exit(runAnonymize(ctrl.SetupSignalHandler(), args[1:], os.Stdout, os.Stderr))
+		case "seed-demo":
+			os.Exit(runSeedDemo(ctrl.SetupSignalHandler(), args[1:], os.Stdout, os.Stderr))
+		case "manager":
+			args = args[1:]
+		default:
+			_, _ = fmt.Fprintln(os.Stderr, "expected manager, anonymize or seed-demo")
+			os.Exit(1)
+		}
 	}
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
@@ -97,10 +108,16 @@ func main() {
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
-	flag.Parse()
+	if err := flag.CommandLine.Parse(args); err != nil {
+		os.Exit(1)
+	}
+	if flag.NArg() != 0 {
+		_, _ = fmt.Fprintln(os.Stderr, "manager accepts flags only")
+		os.Exit(1)
+	}
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-	watchCache, err := namespaceCache(watchNamespaces)
+	managerConfig, err := managerOptions(watchNamespaces)
 	if err != nil {
 		setupLog.Error(err, "Invalid watch namespaces")
 		os.Exit(1)
@@ -173,26 +190,12 @@ func main() {
 		metricsServerOptions.KeyName = metricsCertKey
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		Cache:                  watchCache,
-		Metrics:                metricsServerOptions,
-		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "a1106aa5.pxc-anonymizer.io",
-		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
-	})
+	managerConfig.Metrics = metricsServerOptions
+	managerConfig.WebhookServer = webhookServer
+	managerConfig.HealthProbeBindAddress = probeAddr
+	managerConfig.LeaderElection = enableLeaderElection
+	managerConfig.LeaderElectionID = "a1106aa5.pxc-anonymizer.io"
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), managerConfig)
 	if err != nil {
 		setupLog.Error(err, "Failed to start manager")
 		os.Exit(1)
@@ -253,18 +256,18 @@ func main() {
 	}
 }
 
-func namespaceCache(namespaces string) (cache.Options, error) {
-	options := cache.Options{}
+func managerOptions(namespaces string) (ctrl.Options, error) {
+	options := ctrl.Options{Scheme: scheme}
 	if namespaces == "" {
 		return options, nil
 	}
-	options.DefaultNamespaces = map[string]cache.Config{}
+	options.Cache.DefaultNamespaces = map[string]cache.Config{}
 	for name := range strings.SplitSeq(namespaces, ",") {
 		name = strings.TrimSpace(name)
 		if errors := validation.IsDNS1123Label(name); len(errors) != 0 {
-			return cache.Options{}, fmt.Errorf("invalid namespace %q: %s", name, strings.Join(errors, "; "))
+			return ctrl.Options{}, fmt.Errorf("invalid namespace %q: %s", name, strings.Join(errors, "; "))
 		}
-		options.DefaultNamespaces[name] = cache.Config{}
+		options.Cache.DefaultNamespaces[name] = cache.Config{}
 	}
 	return options, nil
 }

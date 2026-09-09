@@ -69,6 +69,10 @@ See the [Installation guide](docs/installation.md).
 
 See the [BackupPointer quickstart](docs/quickstart.md).
 
+## Demo data
+
+See the [seed-demo guide](docs/configuration/seed-demo.md).
+
 ## API
 
 See the [API reference](docs/reference/api.md).
