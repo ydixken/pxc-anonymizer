@@ -1,0 +1,18 @@
+# Adapt these database and column names to the selected backup before creating a Run.
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: AnonymizationPolicy
+metadata:
+  name: example-policy
+  namespace: database-demo
+spec:
+  determinism:
+    mode: PerRun
+  databases:
+    - name: application
+      tables:
+        - name: customers
+          columns:
+            - name: email
+              strategy: email
+              params:
+                domain: example.com

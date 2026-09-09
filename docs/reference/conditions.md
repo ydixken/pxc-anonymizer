@@ -79,14 +79,17 @@ See [BackupPointer configuration](../configuration/backuppointer.md).
 
 The single `Valid` condition describes the current rules and required references.
 Invalidation clears a previously computed policy hash.
+Require its `observedGeneration` to match the Policy generation; a retained True condition can describe an earlier spec.
 
 | Condition | Status | Reason | Observation |
 | --- | --- | --- | --- |
 | Valid | True | SpecValid | Rules and referenced keys validated; hash recorded. |
-| Valid | False | PatternInvalid | A pattern or other rule is invalid. |
+| Valid | False | PatternInvalid | A pattern, strategy parameter or other rule is invalid. |
 | Valid | False | StepRefMissing | A step, referenced object or key is unavailable or could not be checked. |
 
 Reference checks include SQL steps, fixed seeds and Secret-backed constants in the Policy namespace.
+Valid does not check database connectivity, permissions or the restored schema.
+The hash covers the Policy spec and references, not the referenced payload bytes.
 Secret changes are rechecked on the ten-minute refresh without Secret list/watch access.
 See [Policy configuration](../configuration/policy.md).
 
@@ -108,7 +111,7 @@ A successful Run can omit Failed entirely.
 | SourceResolved | False | BackupNotSucceeded | Backup is absent or not successful. |
 | SourceResolved | False | InvalidDestination | Destination, restore endpoint or credentials are invalid. |
 | SourceResolved | False | Timeout | Source and snapshot resolution timed out. |
-| PolicyValid | True | Snapshotted | Valid Policy and resolved payloads are frozen. |
+| PolicyValid | True | Snapshotted | Policy spec and required resolved payloads are frozen. |
 | PolicyValid | False | PolicyNotFound | Referenced Policy is absent. |
 | PolicyValid | False | PolicyInvalid | Policy, required payload or immutable snapshot is unusable. |
 | TempClusterReady | False | Provisioning | Temporary cluster is being prepared. |
@@ -146,10 +149,13 @@ A successful Run can omit Failed entirely.
 | Failed | True | Failing stage's reason | Pipeline failed with the reason listed for that stage. |
 
 Dry runs skip backup and publication; Complete=True does not require BackedUp=True in that case.
+PolicyValid describes the Run's immutable snapshot, not subsequent edits to its referenced Policy or Secrets.
+Resolved SQL and sensitive values stay in the Run's Secret snapshot, outside condition messages and the policy ConfigMap.
 Failed Runs settle with either CleanedUp=True or Retained=True, and Schedule keeps them active until one of those conditions is present.
 A cleanup deadline changes the explanation while deletion continues; it does not grant permission to abandon the owned resource.
 A stale BackupPointer source emits a `StaleBackup` warning Event but remains usable when Ready is current.
 See [Run configuration](../configuration/run.md) for retry, snapshot and cleanup contracts.
+Use [Retries, deadlines and deletion](../operations/lifecycle.md) when a failure requires intervention.
 
 ## AnonymizationSchedule
 

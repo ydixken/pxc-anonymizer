@@ -6,8 +6,10 @@ Replace illustrative names, endpoints, storage classes and image choices with re
 | Example | Start here when |
 | --- | --- |
 | [Minimal BackupPointer](examples/01-backuppointer-minimal.yaml) | You have a successful PXC backup and a bucket for its pointer. |
-| [Policy](configuration/policy.md#admission-example) | You need column rules and optional SQL steps. |
-| [Run from a pointer](configuration/run.md#admission-example) | You are ready to restore and transform one backup. |
+| [Minimal email Policy](examples/02-policy-minimal.yaml) | You need an email rule for an existing table. |
+| [Run from a BackupPointer](examples/03-run-from-pointer.yaml) | A BackupPointer and Policy are ready. |
+| [Run from an explicit Percona backup](examples/04-run-explicit-backup.yaml) | You want to select a successful backup directly. |
+| [Policy with SQL references](examples/05-policy-sql-steps.yaml) | You need SQL from ConfigMaps or Secrets. |
 | [Schedule](configuration/schedule.md#admission-example) | You want repeated Runs from a prepared template. |
 | [Bootstrap](configuration/bootstrap.md#admission-example) | You want to restore output into existing development targets. |
 | [Demo dataset](configuration/seed-demo.md) | You need deterministic source data on a dedicated demo server. |
@@ -26,7 +28,7 @@ It does not resolve referenced Secrets, validate image compatibility or reserve 
    ```
 
 2. Follow the [BackupPointer quickstart](quickstart.md) to prepare its references and publish a pointer.
-   For the other resources, complete their configuration guide before applying the edited manifest.
+   Complete the [Policy](configuration/policy.md) or [Run](configuration/run.md) guide before applying those examples.
 
 > [!warning]
 > Applying a Run starts work in a temporary database, and applying an unsuspended Schedule can create Runs.

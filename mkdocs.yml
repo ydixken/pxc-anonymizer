@@ -50,7 +50,11 @@ nav:
   - Examples: examples.md
   - Operations:
       - Pointer contract: operations/pointer.md
+      - Temporary cluster sizing and storage: operations/temp-cluster.md
+      - Retries, deadlines and deletion: operations/lifecycle.md
   - Reference:
       - Prerequisites: reference/prerequisites.md
       - API: reference/api.md
       - Conditions and reasons: reference/conditions.md
+      - Strategies: reference/strategies.md
+      - V1 coverage: reference/coverage.md
