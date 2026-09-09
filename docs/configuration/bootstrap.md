@@ -2,6 +2,7 @@
 
 `Bootstrap` defines a pointer or backup destination and an ordered set of existing PXC clusters to restore.
 Its controller restores those targets sequentially, with optional Crossplane pause, recreation and readiness checks.
+Use the [minimal example](../examples/07-bootstrap-minimal.yaml), the [Crossplane example](../examples/08-bootstrap-crossplane.yaml) and the [operating procedure](../operations/bootstrap.md) for prepared development targets.
 
 ## Admission example
 
@@ -54,6 +55,8 @@ Admission defaults the region to `auto`; only an actually empty region inherits 
 The resolved non-secret references are frozen for each target.
 
 `spec.trigger` is an optional token that re-arms a terminal Bootstrap when changed.
+A newer pointer document alone does not restart a completed Bootstrap.
+The controller freezes one resolved source for the execution and uses it for the ordered targets.
 
 ## Crossplane configuration
 
@@ -84,7 +87,7 @@ Do not treat schema acceptance as a safety check for destructive restore or recr
 
 | Field under `timeouts` | Default |
 | --- | --- |
-| `clustersReady` | `0s`, meaning unbounded under the execution contract. |
+| `clustersReady` | `0s`, meaning an unbounded initial wait. |
 | `pointer` | `15m`. |
 | `restore` | `3h` for each target. |
 | `crossplane` | `15m`. |
@@ -121,3 +124,14 @@ Each execution target stores `pxcCluster`, its original `uid`, `restoreUID`, `re
 
 The condition contract includes `ClustersReady`, `PointerResolved`, `CrossplanePaused`, `Restored`, `CrossplaneResumed`, `CrossplaneRecreated`, `Complete` and `Failed`.
 The short name is `bs`, with Phase, Destination, Targets, Complete and Age columns.
+
+## What completion proves
+
+Complete means the target restores, subsequent cluster readiness and configured Crossplane stages finished for `observedTrigger`.
+Crossplane readiness checks the recorded managed resources for both Ready and Synced.
+Neither check opens an application-user connection or verifies that the application's password, grants and endpoint work together.
+Perform that application-specific validation separately before using the restored database.
+
+Failed records an unsuccessful execution while compensation can still be pending.
+Deleting the Bootstrap does not bypass a running restore or its cleanup finalizer.
+Follow [failure and deletion handling](../operations/bootstrap.md#failure-and-deletion) rather than deleting the owned Restore or removing finalizers.

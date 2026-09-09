@@ -1,0 +1,411 @@
+# Copy and adapt one resource at a time; this is a field reference, not a deployment bundle.
+# Provision referenced credentials, policies and clusters separately before execution.
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: BackupPointer
+metadata:
+  name: reference-pointer
+  namespace: database-demo
+spec:
+  source:
+    pxcCluster: example-source
+    storageNames: [example-storage]
+    selector:
+      matchLabels:
+        app.kubernetes.io/part-of: database-demo
+      matchExpressions:
+        - key: example.com/backup-class
+          operator: In
+          values: [daily]
+  target:
+    objectStorage:
+      bucket: example-pointers
+      prefix: reference
+      endpointURL: https://objects.example.com
+      region: us-east-1
+      credentialsSecretRef:
+        name: pointer-credentials
+      keys:
+        accessKeyID: AWS_ACCESS_KEY_ID
+        secretAccessKey: AWS_SECRET_ACCESS_KEY
+        endpointURL: S3_ENDPOINT_URL
+        publicEndpointURL: S3_PUBLIC_ENDPOINT_URL
+      pathStyle: true
+      tls:
+        insecureSkipVerify: false
+        caSecretRef:
+          name: object-storage-ca
+          key: ca.crt
+    key: latest.json
+    publicURL: https://objects.example.com/example-pointers/reference/latest.json
+  staleAfter: 36h
+  verifyInterval: 1h
+  suspend: true
+---  # yamllint disable-line rule:document-start
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: AnonymizationPolicy
+metadata:
+  name: reference-policy
+  namespace: database-demo
+spec:
+  determinism:
+    mode: Fixed
+    seedSecretRef:
+      name: example-fixed-seed
+      key: seed
+  defaults:
+    pageSize: 5000
+    onNull: Keep
+    onEmpty: Keep
+    locale: en
+    emailDomain: example.com
+  steps:
+    - name: reference-pre
+      configMapKeyRef:
+        name: example-sql-steps
+        key: pre.sql
+      continueOnError: false
+    - name: reference-post
+      secretKeyRef:
+        name: example-sensitive-sql
+        key: post.sql
+      continueOnError: false
+  databases:
+    - name: application
+      optional: false
+      pre:
+        - name: reference-pre
+      post:
+        - name: reference-post
+      tables:
+        - name: customers
+          action: Anonymize
+          optional: false
+          primaryKey: [id]
+          ignore:
+            where: "is_service_account = 1"
+          pageSize: 1000
+          columns:
+            - name: email
+              strategy: email
+              consistent: true
+              onNull: Generate
+              onEmpty: Generate
+              params:
+                domain: example.com
+                ascii: true
+            - name: display_name
+              strategy: fullName
+              params:
+                locale: en
+            - name: phone
+              strategy: phone
+              params:
+                digits: 15
+            - name: birth_date
+              strategy: date
+              params:
+                from: "1950-01-01"
+                to: "2000-12-31"
+                format: date
+            - name: vat_id
+              strategy: vatId
+              params:
+                country: DE
+            - name: reference_code
+              strategy: alphanumeric
+              consistent: false
+              params:
+                length: 20
+                case: Upper
+            - name: numeric_code
+              strategy: digits
+              params:
+                length: 12
+                # This exposed field adds no check; database UNIQUE collisions use bounded retries.
+                unique: false
+            - name: score
+              strategy: number
+              params:
+                min: 0
+                max: 100
+            - name: biography
+              strategy: text
+              params:
+                maxLength: 255
+                sentences: 2
+            - name: category
+              strategy: constant
+              params:
+                value: anonymized
+            - name: private_constant
+              strategy: constant
+              params:
+                valueFrom:
+                  name: example-constants
+                  key: replacement
+            - name: digest
+              strategy: hash
+              params:
+                encoding: hex
+                length: 64
+            - name: masked_reference
+              strategy: mask
+              params:
+                keepPrefix: 2
+                keepSuffix: 2
+                maskChar: "*"
+            - name: nullable_note
+              strategy: "null"
+              onNull: Generate
+              onEmpty: Generate
+        - name: disposable_sessions
+          action: Truncate
+          optional: true
+    # namePattern is an alternative to name, never a second selector on the same entry.
+    - namePattern: "^application_archive_[0-9]{4}$"
+      optional: true
+      tables:
+        - name: customers
+          columns:
+            - name: email
+              strategy: email
+---  # yamllint disable-line rule:document-start
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: AnonymizationRun
+metadata:
+  name: reference-run
+  namespace: database-demo
+  labels:
+    pxc-anonymizer.io/output-group: reference-refresh
+spec:
+  source:
+    pointer:
+      http:
+        url: https://objects.example.com/example-pointers/reference/latest.json
+        allowInsecure: false
+        caSecretRef:
+          name: object-storage-ca
+          key: ca.crt
+        timeout: 30s
+        maxBytes: 65536
+    # Replace pointer with exactly one of backupPointerRef, backupRef or destination.
+    # backupPointerRef: {name: reference-pointer}
+    # backupRef: {name: example-source-backup}
+    # destination: s3://example-backups/source-full
+    restore:
+      credentialsSecret: backup-credentials
+      endpointURL: https://objects.example.com
+      region: us-east-1
+      verifyTLS: true
+  policyRef:
+    name: reference-policy
+  tempCluster:
+    namePrefix: anon
+    crVersion: "1.20.0"
+    image: percona/percona-xtradb-cluster:8.4.8-8.1
+    backupImage: percona/percona-xtrabackup:8.4.0-5.1
+    size: 1
+    storage:
+      storageClassName: development-storage
+      size: 10Gi
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        memory: 4Gi
+    systemUsersSecretRef:
+      name: source-system-users
+    haproxy: true
+    configuration: |
+      [mysqld]
+      max_connections=200
+    overrides:
+      haproxy:
+        image: percona/haproxy:2.8.18-1
+    annotations:
+      example.com/purpose: anonymization
+    labels:
+      app.kubernetes.io/part-of: database-demo
+  output:
+    objectStorage:
+      bucket: example-anonymized
+      prefix: reference
+      endpointURL: https://objects.example.com
+      region: us-east-1
+      credentialsSecretRef:
+        name: output-credentials
+      # Percona output backups require these AWS credential keys without remapping.
+      keys:
+        accessKeyID: AWS_ACCESS_KEY_ID
+        secretAccessKey: AWS_SECRET_ACCESS_KEY
+        endpointURL: S3_ENDPOINT_URL
+        publicEndpointURL: S3_PUBLIC_ENDPOINT_URL
+      pathStyle: true
+      tls:
+        insecureSkipVerify: false
+    backupNamePrefix: reference-output
+    containerOptions:
+      xbcloud: []
+      xbstream: []
+      xtrabackup: []
+    pointer:
+      objectStorage:
+        bucket: example-pointers
+        endpointURL: https://objects.example.com
+        region: us-east-1
+        credentialsSecretRef:
+          name: pointer-credentials
+      key: reference/anonymized.json
+      publicURL: https://objects.example.com/example-pointers/reference/anonymized.json
+    retention:
+      keepSucceeded: 2
+      deleteFailedAfter: 24h
+  runner:
+    image: ghcr.io/ydixken/pxc-anonymizer:v0.1.0-alpha.5
+    resources:
+      requests:
+        cpu: "1"
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations:
+      - key: example.com/anonymization
+        operator: Equal
+        value: allowed
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+                - key: kubernetes.io/os
+                  operator: In
+                  values: [linux]
+    workers: 4
+    pageSize: 5000
+    disableBinlog: true
+    dryRun: true
+  timeouts:
+    clusterReady: 30m
+    restore: 3h
+    anonymize: 6h
+    backup: 3h
+    publish: 10m
+    cleanup: 30m
+  cleanup:
+    onFailure: Delete
+    holdTempClusterFor: 0s
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+---  # yamllint disable-line rule:document-start
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: AnonymizationSchedule
+metadata:
+  name: reference-schedule
+  namespace: database-demo
+spec:
+  schedule: "0 2 * * 0"
+  timeZone: UTC
+  suspend: true
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulRunsHistoryLimit: 3
+  failedRunsHistoryLimit: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: database-demo
+      annotations:
+        example.com/purpose: weekly-refresh
+    # This is a RunSpec; the preceding Run demonstrates its remaining optional fields.
+    spec:
+      source:
+        backupPointerRef:
+          name: reference-pointer
+        restore:
+          credentialsSecret: backup-credentials
+          endpointURL: https://objects.example.com
+          region: us-east-1
+      policyRef:
+        name: reference-policy
+      tempCluster:
+        crVersion: "1.20.0"
+        image: percona/percona-xtradb-cluster:8.4.8-8.1
+        backupImage: percona/percona-xtrabackup:8.4.0-5.1
+        systemUsersSecretRef:
+          name: source-system-users
+        storage:
+          storageClassName: development-storage
+          size: 10Gi
+      output:
+        objectStorage:
+          bucket: example-anonymized
+          region: us-east-1
+          credentialsSecretRef:
+            name: output-credentials
+---  # yamllint disable-line rule:document-start
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: Bootstrap
+metadata:
+  name: reference-bootstrap
+  namespace: database-demo
+spec:
+  pointer:
+    s3:
+      objectStorage:
+        bucket: example-pointers
+        prefix: reference
+        endpointURL: https://objects.example.com
+        region: us-east-1
+        credentialsSecretRef:
+          name: pointer-credentials
+        pathStyle: true
+      key: anonymized.json
+    # Replace s3 with http (as in example 07) or an inline destination, never both.
+    # Remove maxAge for a literal destination, which has no publication timestamp.
+    # destination: s3://example-anonymized/reference/output-full
+    maxAge: 24h
+  restore:
+    credentialsSecret: output-credentials
+    endpointURL: https://objects.example.com
+    region: us-east-1
+    verifyTLS: true
+  targets:
+    - pxcCluster: example-downstream
+      containerOptions:
+        xbcloud: []
+        xbstream: []
+        xtrabackup: []
+      restore:
+        credentialsSecret: target-restore-credentials
+        endpointURL: https://objects.example.com
+        region: us-east-1
+        verifyTLS: true
+  crossplane:
+    group: mysql.sql.crossplane.io
+    version: v1alpha1
+    kinds: [databases, users, grants]
+    selector:
+      matchLabels:
+        app.kubernetes.io/part-of: database-demo
+      matchExpressions:
+        - key: example.com/environment
+          operator: In
+          values: [development]
+    pause: true
+    resume: true
+    recreate:
+      kinds: [users, grants]
+      removeFinalizers: false
+      waitForRecreation: true
+    readinessTimeout: 15m
+  timeouts:
+    clustersReady: 30m
+    pointer: 15m
+    restore: 3h
+    crossplane: 15m
+  trigger: initial

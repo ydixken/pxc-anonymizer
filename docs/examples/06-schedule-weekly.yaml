@@ -1,0 +1,43 @@
+# Prepare the Policy, BackupPointer and same-namespace credentials before unsuspending.
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: AnonymizationSchedule
+metadata:
+  name: example-weekly
+  namespace: database-demo
+spec:
+  schedule: "0 2 * * 0"
+  timeZone: UTC
+  suspend: true
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulRunsHistoryLimit: 3
+  failedRunsHistoryLimit: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: database-demo
+    spec:
+      source:
+        backupPointerRef:
+          name: latest-backup
+        restore:
+          credentialsSecret: backup-credentials
+          endpointURL: https://objects.example.com
+          region: us-east-1
+      policyRef:
+        name: example-policy
+      tempCluster:
+        crVersion: "1.20.0"
+        image: percona/percona-xtradb-cluster:8.4.8-8.1
+        backupImage: percona/percona-xtrabackup:8.4.0-5.1
+        systemUsersSecretRef:
+          name: source-system-users
+        storage:
+          storageClassName: development-storage
+          size: 10Gi
+      output:
+        objectStorage:
+          bucket: example-anonymized
+          region: us-east-1
+          credentialsSecretRef:
+            name: output-credentials

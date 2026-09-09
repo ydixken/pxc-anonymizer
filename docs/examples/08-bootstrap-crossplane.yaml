@@ -1,0 +1,39 @@
+# Confirm the target and selector before applying: restore replaces database contents.
+# Keep desired users/grants and their application password Secrets managed separately.
+apiVersion: pxc-anonymizer.io/v1alpha1
+kind: Bootstrap
+metadata:
+  name: example-bootstrap-crossplane
+  namespace: database-demo
+spec:
+  pointer:
+    http:
+      url: https://objects.example.com/example-anonymized/latest.json
+    maxAge: 24h
+  restore:
+    credentialsSecret: output-credentials
+    endpointURL: https://objects.example.com
+    region: us-east-1
+    verifyTLS: true
+  targets:
+    - pxcCluster: example-downstream
+  crossplane:
+    group: mysql.sql.crossplane.io
+    version: v1alpha1
+    kinds: [databases, users, grants]
+    selector:
+      matchLabels:
+        app.kubernetes.io/part-of: database-demo
+    pause: true
+    resume: true
+    recreate:
+      kinds: [users, grants]
+      removeFinalizers: false
+      waitForRecreation: true
+    readinessTimeout: 15m
+  timeouts:
+    clustersReady: 30m
+    pointer: 15m
+    restore: 3h
+    crossplane: 15m
+  trigger: initial
