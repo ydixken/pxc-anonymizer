@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	api "github.com/ydixken/pxc-anonymizer/api/v1alpha1"
 )
@@ -104,6 +105,66 @@ func TestRenderRestoreGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkRenderGolden(t, "restore", restore)
+}
+
+func TestRestoreNameBudgetsPerconaJobs(t *testing.T) {
+	cluster := strings.Repeat("c", 22)
+	for _, candidate := range []string{"short-restore", strings.Repeat("r", 28), strings.Repeat("r", 29), strings.Repeat("r", 253)} {
+		name, err := RestoreName(candidate, cluster)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(candidate) <= 28 && name != candidate {
+			t.Fatal("safe restore identity changed")
+		}
+		if len(candidate) > 28 && (name == candidate || len(name) != 28) {
+			t.Fatal("long restore identity did not use its full safe budget")
+		}
+		for _, prefix := range []string{"restore-job-", "prepare-job-"} {
+			job := prefix + name + "-" + cluster
+			if problems := validation.IsValidLabelValue(job); len(problems) != 0 {
+				t.Fatalf("invalid derived Job label: %v", problems)
+			}
+		}
+		again, err := RestoreName(candidate, cluster)
+		if err != nil || again != name {
+			t.Fatal("restore identity is not deterministic")
+		}
+	}
+	first, err := RestoreName(strings.Repeat("r", 100)+"a", cluster)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := RestoreName(strings.Repeat("r", 100)+"b", cluster)
+	if err != nil || first == second {
+		t.Fatal("shortening discarded the full candidate identity")
+	}
+	for _, input := range [][2]string{{"restore", strings.Repeat("c", 23)}, {"restore", ""}, {"restore", "Invalid"}, {"", cluster}, {"invalid_name", cluster}} {
+		if _, err := RestoreName(input[0], input[1]); err == nil {
+			t.Fatal("invalid restore identity was accepted")
+		}
+	}
+}
+
+func TestRenderRestoreEnforcesDerivedJobBoundary(t *testing.T) {
+	owner := &api.Bootstrap{ObjectMeta: metav1.ObjectMeta{Name: "example-bootstrap", UID: "example-bootstrap-uid"}}
+	options := RestoreRenderOptions{
+		Namespace: "renderer-tests", ClusterName: strings.Repeat("c", 22),
+		Destination: "s3://example-source/daily/source-full",
+		Credentials: api.RestoreS3Credentials{CredentialsSecret: "restore-credentials"},
+		Owner:       *metav1.NewControllerRef(owner, api.GroupVersion.WithKind("Bootstrap")),
+	}
+	for _, size := range []int{28, 29} {
+		options.Name = strings.Repeat("r", size)
+		restore, err := RenderRestore(options)
+		if size == 28 {
+			if err != nil || restore.GetName() != options.Name {
+				t.Fatalf("63-byte derived Job label was rejected: %v", err)
+			}
+		} else if err == nil || !strings.Contains(err.Error(), "Job label budget") {
+			t.Fatalf("64-byte derived Job label was not rejected clearly: %v", err)
+		}
+	}
 }
 
 func TestRenderOutputBackupGolden(t *testing.T) {

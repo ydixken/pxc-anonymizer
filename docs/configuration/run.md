@@ -86,6 +86,9 @@ The runner image and output group are resolved and frozen with those inputs.
 
 Image compatibility, available capacity and the meaning of override fields are not verified by admission.
 The runtime renderer requires an explicit storage class and limits total requested PXC data volume capacity across temporary replicas to 20Gi.
+Cluster names must fit Percona's 22-byte limit.
+Restore names reserve space for Percona's derived Job labels: valid short names stay unchanged, while longer candidates receive a shortened readable prefix and a deterministic hash suffix.
+Inspect `status.restoreName` for the recorded child identity; retries preserve it.
 HAProxy defaults to `percona/haproxy:2.8.18-1`; a deliberate spec override can supply a different compatible image.
 The system-user Secret contract includes any backup encryption key needed to restore the source.
 Supply `root`, `xtrabackup`, `monitor`, `proxyadmin`, `operator` and `replication` keys from the source cluster, because the restored backup contains its `mysql.user` credentials.
