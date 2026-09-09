@@ -43,6 +43,7 @@ import (
 
 	api "github.com/ydixken/pxc-anonymizer/api/v1alpha1"
 	"github.com/ydixken/pxc-anonymizer/internal/conditions"
+	"github.com/ydixken/pxc-anonymizer/internal/metrics"
 	"github.com/ydixken/pxc-anonymizer/internal/objectstore"
 	"github.com/ydixken/pxc-anonymizer/internal/pointer"
 	"github.com/ydixken/pxc-anonymizer/internal/pxc"
@@ -84,6 +85,9 @@ func (r *BackupPointerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *BackupPointerReconciler) reconcilePointer(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	bp := &api.BackupPointer{}
 	if err := r.Get(ctx, req.NamespacedName, bp); err != nil {
+		if apierrors.IsNotFound(err) {
+			metrics.ForgetBackupPointer(req.Namespace, req.Name)
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if !bp.DeletionTimestamp.IsZero() {
@@ -104,6 +108,7 @@ func (r *BackupPointerReconciler) reconcilePointer(ctx context.Context, req ctrl
 		return ctrl.Result{}, errors.Join(err, r.patchPointerStatus(ctx, bp, base))
 	}
 	bp.Status.Backups = countPointerBackups(backups)
+	metrics.RecordBackupPointerCandidates(bp)
 	candidates := make([]pxc.BackupView, 0, len(backups))
 	for _, backup := range backups {
 		if !backup.Succeeded() || strings.HasPrefix(backup.Status.Destination, "s3://") {
@@ -289,6 +294,7 @@ func (r *BackupPointerReconciler) publishPointer(
 		return err
 	}
 	etag, err := store.PutJSON(ctx, bp.Spec.Target.Key, document)
+	metrics.RecordBackupPointerPublish(bp.Namespace, bp.Name, err == nil)
 	if err != nil {
 		return err
 	}
@@ -396,9 +402,14 @@ func (r *BackupPointerReconciler) setPointerCondition(
 func (r *BackupPointerReconciler) patchPointerStatus(ctx context.Context, bp, base *api.BackupPointer) error {
 	bp.Status.ObservedGeneration = bp.Generation
 	if apiequality.Semantic.DeepEqual(bp.Status, base.Status) {
+		metrics.RecordBackupPointer(bp)
 		return nil
 	}
-	return r.Status().Patch(ctx, bp, client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{}))
+	if err := r.Status().Patch(ctx, bp, client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{})); err != nil {
+		return err
+	}
+	metrics.RecordBackupPointer(bp)
+	return nil
 }
 
 func (r *BackupPointerReconciler) mapBackupToPointers(ctx context.Context, obj client.Object) []reconcile.Request {
