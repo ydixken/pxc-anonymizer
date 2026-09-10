@@ -56,6 +56,7 @@ nav:
       - The pipeline end to end: operations/pipeline.md
       - Bootstrapping a downstream cluster: operations/bootstrap.md
       - Argo CD health checks: operations/argocd.md
+      - Present the pipeline in three to four minutes: operations/talk-demo.md
   - Reference:
       - Prerequisites: reference/prerequisites.md
       - API: reference/api.md
