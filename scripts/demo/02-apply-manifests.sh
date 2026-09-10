@@ -129,7 +129,7 @@ check_crossplane() {
     any(.status.conditions[]?; .type == "Ready" and .status == "True") and
     any(.status.conditions[]?; .type == "Synced" and .status == "True"))' <<< "$cp" >/dev/null ||
     fail 'Selected Crossplane resources are missing, paused, deleting or not Ready/Synced'
-  cp_refs=$(jq -c '.items | map({kind:(.kind | ascii_downcase)+"s",name:.metadata.name,uid:.metadata.uid}) | sort_by(.kind,.name)' <<< "$cp")
+  cp_refs=$(jq -c '.items | map({kind:((.kind | ascii_downcase)+"s"),name:.metadata.name,uid:.metadata.uid}) | sort_by(.kind,.name)' <<< "$cp")
 }
 check_target() {
   target=$(get "$downstream_ns" perconaxtradbclusters.pxc.percona.com "$target_name")
